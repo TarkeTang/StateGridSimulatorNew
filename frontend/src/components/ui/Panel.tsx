@@ -17,7 +17,7 @@ const Panel = ({ title, children, className, headerAction }: PanelProps) => {
           {headerAction}
         </div>
       )}
-      <div className="panel-content">
+      <div className={clsx('panel-content', className?.includes('flex-col') && 'flex-1 min-h-0')}>
         {children}
       </div>
     </div>

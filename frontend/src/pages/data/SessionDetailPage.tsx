@@ -674,10 +674,10 @@ const SessionDetailPage = () => {
 
         {/* 下部：发送配置 */}
         <div style={{ height: bottomPanelHeight }} className="flex-shrink-0">
-          <Panel title="发送配置" className="h-full">
-            <div className="flex gap-4 h-full">
+          <Panel title="发送配置" className="h-full flex flex-col">
+            <div className="flex gap-4 flex-1 min-h-0">
               {/* 发送模式 */}
-              <div className="flex flex-col gap-2">
+              <div className="flex flex-col gap-2 flex-shrink-0">
                 <span className="text-xs text-gray-400">格式</span>
                 <div className="flex items-center gap-2">
                   <label className="flex items-center gap-1.5 cursor-pointer">
@@ -714,7 +714,7 @@ const SessionDetailPage = () => {
               </div>
 
               {/* 发送内容 */}
-              <div className="flex-1">
+              <div className="flex-1 min-h-0 flex flex-col">
                 <textarea
                   value={getDisplayContent(sendData)}
                   onChange={(e) => setSendData(e.target.value)}
@@ -724,13 +724,13 @@ const SessionDetailPage = () => {
                     }
                   }}
                   placeholder="输入发送数据... (Ctrl+Enter发送)"
-                  className="input-field h-full resize-none font-mono text-sm w-full"
+                  className="input-field flex-1 min-h-0 resize-none font-mono text-sm w-full"
                   disabled={!isConnected}
                 />
               </div>
 
               {/* 发送按钮 */}
-              <div className="flex flex-col gap-2">
+              <div className="flex flex-col gap-2 flex-shrink-0">
                 <Button
                   variant="primary"
                   onClick={handleSend}
