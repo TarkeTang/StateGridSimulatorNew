@@ -69,12 +69,17 @@ body {
   .panel.is-flex {
     display: flex;
     flex-direction: column;
+    overflow: hidden;
   }
 
-  .panel.is-flex > .panel-content {
+  .panel.is-flex > .panel-header {
+    flex-shrink: 0;
+  }
+
+  .panel.is-flex > .is-flex-content {
     flex: 1;
     min-height: 0;
-    overflow: auto;
+    overflow: hidden;
   }
 
   /* 按钮样式 */

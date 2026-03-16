@@ -558,7 +558,7 @@ const SessionDetailPage = () => {
         <div className="flex-1 min-h-0">
           <Panel
             title="通信记录"
-            className="h-full flex flex-col"
+            className="h-full is-flex"
             headerAction={
               <div className="flex items-center gap-3">
                 <label className="flex items-center gap-2 cursor-pointer">
@@ -590,7 +590,7 @@ const SessionDetailPage = () => {
               </div>
             }
           >
-            <div className="flex-1 overflow-y-auto bg-black/40 rounded p-3 font-mono text-sm min-h-0">
+            <div className="h-full overflow-y-auto bg-black/40 rounded p-3 font-mono text-sm">
               {messages.length === 0 ? (
                 <div className="h-full flex flex-col items-center justify-center text-gray-500">
                   <Activity className="w-12 h-12 mb-3 opacity-30" />
@@ -677,9 +677,12 @@ const SessionDetailPage = () => {
         </div>
 
         {/* 下部：发送配置 - 固定高度 */}
-        <div className="flex-shrink-0" style={{ height: bottomPanelHeight }}>
-          <Panel title="发送配置" className="h-full flex flex-col">
-            <div className="flex gap-4 flex-1 min-h-0">
+        <div 
+          className="flex-shrink-0" 
+          style={{ height: bottomPanelHeight, minHeight: 120, maxHeight: 400 }}
+        >
+          <Panel title="发送配置" className="h-full is-flex">
+            <div className="flex gap-4 h-full">
               {/* 发送模式 */}
               <div className="flex flex-col gap-2 flex-shrink-0">
                 <span className="text-xs text-gray-400">格式</span>
@@ -718,7 +721,7 @@ const SessionDetailPage = () => {
               </div>
 
               {/* 发送内容 - 自适应高度 */}
-              <div className="flex-1 min-h-0 flex flex-col">
+              <div className="flex-1 min-w-0 h-full">
                 <textarea
                   value={getDisplayContent(sendData)}
                   onChange={(e) => setSendData(e.target.value)}
@@ -728,7 +731,7 @@ const SessionDetailPage = () => {
                     }
                   }}
                   placeholder="输入发送数据... (Ctrl+Enter发送)"
-                  className="input-field flex-1 min-h-0 resize-none font-mono text-sm w-full"
+                  className="input-field h-full resize-none font-mono text-sm w-full"
                   disabled={!isConnected}
                 />
               </div>
