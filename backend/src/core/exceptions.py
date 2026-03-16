@@ -20,14 +20,14 @@ class AppException(Exception):
         self,
         code: int = 500,
         message: str = "服务器内部错误",
-        data: Optional[dict[str, Any]] = None,
+        data: Optional[Dict[str, Any]] = None,
     ):
         self.code = code
         self.message = message
         self.data = data or {}
         super().__init__(self.message)
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> Dict[str, Any]:
         """转换为字典格式"""
         return {
             "code": self.code,
