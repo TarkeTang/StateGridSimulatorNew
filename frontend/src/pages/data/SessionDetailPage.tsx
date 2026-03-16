@@ -129,6 +129,7 @@ const SessionDetailPage = () => {
 
   const messageIdRef = useRef(0)
   const autoSendTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const autoSendRunningRef = useRef(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const autoSendItemIdRef = useRef(2)
@@ -349,53 +350,45 @@ const SessionDetailPage = () => {
     }
 
     setAutoSendActive(true)
-    setCurrentSendIndex(0)
+    autoSendRunningRef.current = true
     addMessage('system', `自动发送已启动，共 ${enabledItems.length} 条消息`)
 
-    // 发送第一条消息
-    sendSingleMessage(enabledItems[0].content)
+    let currentIndex = 0
 
-    // 设置定时器发送后续消息
-    let itemIndex = 0
-    const scheduleNext = () => {
-      if (itemIndex >= enabledItems.length - 1) {
-        itemIndex = 0 // 循环
-      } else {
-        itemIndex++
-      }
+    const sendNextMessage = () => {
+      if (!autoSendRunningRef.current) return
 
-      const nextItem = enabledItems[itemIndex]
-      setCurrentSendIndex(itemIndex)
+      const item = enabledItems[currentIndex]
+      setCurrentSendIndex(currentIndex)
 
+      // 发送消息
+      sendSingleMessage(item.content)
+
+      // 计算下一条消息的索引
+      const nextIndex = (currentIndex + 1) % enabledItems.length
+
+      // 等待当前消息的间隔时间后发送下一条
       autoSendTimerRef.current = setTimeout(() => {
-        if (autoSendActive) {
-          sendSingleMessage(nextItem.content)
-          scheduleNext()
+        if (autoSendRunningRef.current) {
+          currentIndex = nextIndex
+          sendNextMessage()
         }
-      }, nextItem.interval)
+      }, item.interval)
     }
 
-    // 第一条消息后等待其间隔时间
-    autoSendTimerRef.current = setTimeout(() => {
-      if (autoSendActive) {
-        itemIndex = 1
-        setCurrentSendIndex(1)
-        if (enabledItems[1]) {
-          sendSingleMessage(enabledItems[1].content)
-          scheduleNext()
-        }
-      }
-    }, enabledItems[0].interval)
+    // 开始发送第一条消息
+    sendNextMessage()
   }
 
   // 停止自动发送
   const stopAutoSend = () => {
-    setAutoSendActive(false)
-    setCurrentSendIndex(0)
+    autoSendRunningRef.current = false
     if (autoSendTimerRef.current) {
       clearTimeout(autoSendTimerRef.current)
       autoSendTimerRef.current = null
     }
+    setAutoSendActive(false)
+    setCurrentSendIndex(0)
     addMessage('system', '自动发送已停止')
   }
 
