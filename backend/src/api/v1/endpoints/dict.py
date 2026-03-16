@@ -4,7 +4,7 @@
 提供字典数据的 RESTful API 接口
 """
 
-from typing import Optional
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -21,7 +21,7 @@ log = get_logger("api.dict")
 
 @router.get(
     "/types",
-    response_model=BaseResponse[list[DictTypeResponse]],
+    response_model=BaseResponse[List[DictTypeResponse]],
     summary="获取字典类型列表",
     description="获取所有字典类型",
 )
@@ -34,7 +34,7 @@ async def get_dict_types(db: AsyncSession = Depends(get_db_session)):
 
 @router.get(
     "/data/{type_code}",
-    response_model=BaseResponse[list[DictDataResponse]],
+    response_model=BaseResponse[List[DictDataResponse]],
     summary="获取字典数据列表",
     description="根据类型编码获取字典数据列表",
 )
