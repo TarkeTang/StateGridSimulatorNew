@@ -65,6 +65,15 @@ body {
     @apply p-4;
   }
 
+  /* Panel flex 支持 */
+  .panel.flex {
+    @apply flex flex-col;
+  }
+
+  .panel.flex > .panel-content {
+    @apply flex-1 min-h-0 overflow-auto;
+  }
+
   /* 按钮样式 */
   .btn {
     @apply px-4 py-2 rounded font-medium transition-all duration-200;

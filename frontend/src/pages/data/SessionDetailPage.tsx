@@ -74,9 +74,9 @@ const SessionDetailPage = () => {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
 
-  // 面板尺寸状态 - 使用百分比
-  const [leftPanelWidth, setLeftPanelWidth] = useState(25) // 百分比
-  const [bottomPanelHeight, setBottomPanelHeight] = useState(25) // 百分比
+  // 面板尺寸状态 - 使用像素值
+  const [leftPanelWidth, setLeftPanelWidth] = useState(320)
+  const [bottomPanelHeight, setBottomPanelHeight] = useState(200)
 
   // 拖动状态
   const [isDraggingH, setIsDraggingH] = useState(false)
@@ -156,20 +156,13 @@ const SessionDetailPage = () => {
     loadSession()
   }, [loadDictData, loadSession])
 
-  // 水平拖动处理 - 左右面板宽度联动
+  // 水平拖动处理
   useEffect(() => {
-    if (!isDraggingH || !containerRef.current) return
+    if (!isDraggingH) return
 
     const handleMouseMove = (e: MouseEvent) => {
-      const container = containerRef.current
-      if (!container) return
-
-      const containerRect = container.getBoundingClientRect()
-      const newLeftWidth = ((e.clientX - containerRect.left) / containerRect.width) * 100
-      
-      // 限制范围：左侧最小20%，最大40%
-      const clampedWidth = Math.min(40, Math.max(20, newLeftWidth))
-      setLeftPanelWidth(clampedWidth)
+      const newWidth = Math.min(500, Math.max(250, e.clientX))
+      setLeftPanelWidth(newWidth)
     }
 
     const handleMouseUp = () => {
@@ -189,7 +182,7 @@ const SessionDetailPage = () => {
     }
   }, [isDraggingH])
 
-  // 垂直拖动处理 - 上下面板高度联动
+  // 垂直拖动处理
   useEffect(() => {
     if (!isDraggingV || !containerRef.current) return
 
@@ -199,11 +192,8 @@ const SessionDetailPage = () => {
 
       const containerRect = container.getBoundingClientRect()
       const mouseFromBottom = containerRect.bottom - e.clientY
-      const newBottomHeight = (mouseFromBottom / containerRect.height) * 100
-
-      // 限制范围：底部最小15%，最大50%
-      const clampedHeight = Math.min(50, Math.max(15, newBottomHeight))
-      setBottomPanelHeight(clampedHeight)
+      const newHeight = Math.min(400, Math.max(120, mouseFromBottom))
+      setBottomPanelHeight(newHeight)
     }
 
     const handleMouseUp = () => {
@@ -429,15 +419,17 @@ const SessionDetailPage = () => {
   }
 
   const statusStyle = getStatusStyle(session.status)
-  const rightPanelWidth = 100 - leftPanelWidth
-  const topPanelHeight = 100 - bottomPanelHeight
 
   return (
-    <div className="h-full flex animate-fadeIn overflow-hidden" ref={containerRef}>
+    <div
+      className="h-full flex animate-fadeIn"
+      ref={containerRef}
+      style={{ overflow: isDraggingH || isDraggingV ? 'hidden' : 'visible' }}
+    >
       {/* 左侧：会话信息和连接状态 */}
       <div
-        className="flex-shrink-0 flex flex-col gap-4 relative overflow-hidden"
-        style={{ width: `${leftPanelWidth}%` }}
+        className="flex-shrink-0 flex flex-col gap-4 relative"
+        style={{ width: leftPanelWidth }}
       >
         {/* 返回按钮 */}
         <Button variant="secondary" onClick={() => navigate('/data/session')}>
@@ -445,7 +437,7 @@ const SessionDetailPage = () => {
           返回列表
         </Button>
 
-        {/* 会话信息（只读） */}
+        {/* 会话信息 */}
         <Panel title="会话信息" className="flex-1 min-h-0 overflow-auto">
           <div className="space-y-3">
             <div className="flex items-center justify-between">
@@ -519,7 +511,6 @@ const SessionDetailPage = () => {
             </div>
           </div>
 
-          {/* 连接按钮 */}
           <div className="mt-4 pt-4 border-t border-panel-border">
             <Button
               variant={isConnected ? 'danger' : 'success'}
@@ -562,15 +553,9 @@ const SessionDetailPage = () => {
       </div>
 
       {/* 右侧：通信记录和发送配置 */}
-      <div
-        className="flex flex-col min-w-0 overflow-hidden"
-        style={{ width: `${rightPanelWidth}%` }}
-      >
-        {/* 上部：通信记录 */}
-        <div
-          className="flex-1 min-h-0 overflow-hidden"
-          style={{ height: `${topPanelHeight}%` }}
-        >
+      <div className="flex-1 flex flex-col min-w-0 ml-1">
+        {/* 上部：通信记录 - 自动填充剩余高度 */}
+        <div className="flex-1 min-h-0">
           <Panel
             title="通信记录"
             className="h-full flex flex-col"
@@ -680,7 +665,7 @@ const SessionDetailPage = () => {
 
         {/* 垂直拖动手柄 */}
         <div
-          className={`h-1 cursor-ns-resize z-10 group flex-shrink-0 ${
+          className={`h-1 cursor-ns-resize z-10 group flex-shrink-0 my-1 ${
             isDraggingV ? 'bg-signal-blue' : 'hover:bg-signal-blue/50'
           }`}
           onMouseDown={(e) => {
@@ -691,11 +676,8 @@ const SessionDetailPage = () => {
           <div className="mx-auto w-12 h-1 bg-gray-500 rounded opacity-0 group-hover:opacity-100 transition-opacity" />
         </div>
 
-        {/* 下部：发送配置 */}
-        <div
-          className="flex-shrink-0 overflow-hidden"
-          style={{ height: `${bottomPanelHeight}%` }}
-        >
+        {/* 下部：发送配置 - 固定高度 */}
+        <div className="flex-shrink-0" style={{ height: bottomPanelHeight }}>
           <Panel title="发送配置" className="h-full flex flex-col">
             <div className="flex gap-4 flex-1 min-h-0">
               {/* 发送模式 */}
@@ -735,7 +717,7 @@ const SessionDetailPage = () => {
                 </div>
               </div>
 
-              {/* 发送内容 */}
+              {/* 发送内容 - 自适应高度 */}
               <div className="flex-1 min-h-0 flex flex-col">
                 <textarea
                   value={getDisplayContent(sendData)}

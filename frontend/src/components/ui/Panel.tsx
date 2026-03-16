@@ -9,15 +9,24 @@ interface PanelProps {
 }
 
 const Panel = ({ title, children, className, headerAction }: PanelProps) => {
+  const hasFlexCol = className?.includes('flex-col')
+  const hasFlex = className?.includes('flex')
+
   return (
     <div className={clsx('panel', className)}>
       {title && (
-        <div className="panel-header">
+        <div className="panel-header flex-shrink-0">
           <h3 className="panel-title">{title}</h3>
           {headerAction}
         </div>
       )}
-      <div className={clsx('panel-content', className?.includes('flex-col') && 'flex-1 min-h-0')}>
+      <div 
+        className={clsx(
+          'panel-content',
+          hasFlexCol && 'flex-1 min-h-0 flex flex-col',
+          hasFlex && !hasFlexCol && 'flex-1 min-h-0'
+        )}
+      >
         {children}
       </div>
     </div>
