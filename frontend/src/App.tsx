@@ -3,7 +3,7 @@ import MainLayout from './components/layout/MainLayout'
 import Home from './pages/Home'
 import Dashboard from './pages/Dashboard'
 import TcpDebugPage from './pages/protocol/TcpDebugPage'
-import TcpSessionPage from './pages/data/TcpSessionPage'
+import SessionManagePage from './pages/data/SessionManagePage'
 import SessionDetailPage from './pages/data/SessionDetailPage'
 import './index.css'
 
@@ -15,7 +15,7 @@ function App() {
           <Route index element={<Home />} />
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="protocol/tcp" element={<TcpDebugPage />} />
-          <Route path="data/tcp-session" element={<TcpSessionPage />} />
+          <Route path="data/session" element={<SessionManagePage />} />
           <Route path="data/session/:id" element={<SessionDetailPage />} />
         </Route>
       </Routes>

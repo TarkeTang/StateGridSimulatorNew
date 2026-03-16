@@ -31,7 +31,7 @@ const navItems: NavItem[] = [
     label: '数据管理',
     icon: Database,
     children: [
-      { path: '/data/tcp-session', label: 'TCP会话管理', icon: Server },
+      { path: '/data/session', label: '会话管理', icon: Server },
       { path: '/data/message', label: '消息记录', icon: FolderOpen },
     ],
   },
