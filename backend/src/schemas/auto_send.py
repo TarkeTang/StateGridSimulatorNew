@@ -17,7 +17,7 @@ from pydantic import BaseModel, Field
 class AutoSendConfigBase(BaseModel):
     """自动发送配置基础模式"""
 
-    message_content: str = Field(..., min_length=1, description="消息内容")
+    message_content: str = Field(default="", description="消息内容")
     interval_ms: int = Field(default=1000, ge=100, le=86400000, description="发送间隔(毫秒)")
     is_enabled: bool = Field(default=True, description="是否启用")
     sort_order: int = Field(default=0, description="排序顺序")
@@ -33,7 +33,7 @@ class AutoSendConfigCreate(AutoSendConfigBase):
 class AutoSendConfigUpdate(BaseModel):
     """更新自动发送配置请求"""
 
-    message_content: Optional[str] = Field(None, min_length=1, description="消息内容")
+    message_content: Optional[str] = Field(None, description="消息内容")
     interval_ms: Optional[int] = Field(None, ge=100, le=86400000, description="发送间隔(毫秒)")
     is_enabled: Optional[bool] = Field(None, description="是否启用")
     sort_order: Optional[int] = Field(None, description="排序顺序")
