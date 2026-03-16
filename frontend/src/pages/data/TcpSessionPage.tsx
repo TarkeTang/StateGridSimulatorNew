@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Panel, Button, Input } from '@/components/ui'
 import {
   Plus,
@@ -32,6 +33,8 @@ const initialFormData: SessionConfigCreate = {
 }
 
 const TcpSessionPage = () => {
+  const navigate = useNavigate()
+
   // 数据状态
   const [sessions, setSessions] = useState<SessionConfig[]>([])
   const [total, setTotal] = useState(0)
@@ -386,10 +389,11 @@ const TcpSessionPage = () => {
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
-                          {/* 查看消息按钮 */}
+                          {/* 查看详情按钮 */}
                           <button
+                            onClick={() => navigate(`/data/session/${session.id}`)}
                             className="p-1.5 rounded text-gray-400 hover:text-signal-yellow hover:bg-signal-yellow/20 transition-colors"
-                            title="查看消息"
+                            title="查看详情"
                           >
                             <Eye className="w-4 h-4" />
                           </button>

@@ -148,4 +148,11 @@ export const sessionService = {
   disconnect: (id: number) => {
     return api.post<ApiResponse<SessionConfig>>(`/sessions/${id}/disconnect`)
   },
+
+  /**
+   * 发送消息
+   */
+  send: (id: number, data: string) => {
+    return api.post<ApiResponse<null>>(`/sessions/${id}/send`, { data })
+  },
 }
