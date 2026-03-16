@@ -5,6 +5,7 @@
 """
 
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import AsyncGenerator
 
 from sqlalchemy.ext.asyncio import (
@@ -19,17 +20,31 @@ from src.utils.logger import get_logger
 
 log = get_logger("db")
 
-# 创建异步引擎
-engine = create_async_engine(
-    settings.database.async_url,
-    echo=settings.debug,
-    pool_size=settings.database.pool_size,
-    max_overflow=settings.database.max_overflow,
-    pool_timeout=settings.database.pool_timeout,
-    pool_recycle=settings.database.pool_recycle,
-    # 生产环境使用连接池，测试环境使用 NullPool
-    poolclass=None if not settings.debug else NullPool,
-)
+# SQLite 不支持连接池，需要特殊处理
+is_sqlite = settings.database.driver == "sqlite"
+
+if is_sqlite:
+    # 确保 SQLite 数据目录存在
+    sqlite_path = Path(settings.database.sqlite_file)
+    sqlite_path.parent.mkdir(parents=True, exist_ok=True)
+    
+    # SQLite 引擎配置
+    engine = create_async_engine(
+        settings.database.async_url,
+        echo=settings.debug,
+        poolclass=NullPool,  # SQLite 必须使用 NullPool
+    )
+else:
+    # PostgreSQL/MySQL 引擎配置
+    engine = create_async_engine(
+        settings.database.async_url,
+        echo=settings.debug,
+        pool_size=settings.database.pool_size,
+        max_overflow=settings.database.max_overflow,
+        pool_timeout=settings.database.pool_timeout,
+        pool_recycle=settings.database.pool_recycle,
+        poolclass=None if not settings.debug else NullPool,
+    )
 
 # 创建异步会话工厂
 AsyncSessionLocal = async_sessionmaker(

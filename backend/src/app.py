@@ -34,14 +34,20 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     )
     log.info(f"应用启动: {settings.name} v{settings.version}")
 
-    # 初始化数据库
-    await init_db()
-    log.info("数据库初始化完成")
+    # 初始化数据库（可选，失败时仅警告）
+    try:
+        await init_db()
+        log.info("数据库初始化完成")
+    except Exception as e:
+        log.warning(f"数据库连接失败，应用将以无数据库模式运行: {e}")
 
     yield
 
     # 关闭时清理
-    await close_db()
+    try:
+        await close_db()
+    except Exception:
+        pass
     log.info("应用关闭")
 
 

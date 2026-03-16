@@ -8,9 +8,11 @@
 - 类型安全验证
 """
 
+from __future__ import annotations
+
 from functools import lru_cache
 from pathlib import Path
-from typing import Literal, Optional
+from typing import List, Literal, Optional
 
 import yaml
 from pydantic import Field, field_validator
@@ -22,8 +24,8 @@ class DatabaseSettings(BaseSettings):
 
     model_config = SettingsConfigDict(env_prefix="DB_")
 
-    # 数据库类型
-    driver: Literal["postgresql", "mysql"] = "postgresql"
+    # 数据库类型 (sqlite/postgresql/mysql)
+    driver: Literal["sqlite", "postgresql", "mysql"] = "sqlite"
 
     # 连接参数
     host: str = "localhost"
@@ -31,6 +33,9 @@ class DatabaseSettings(BaseSettings):
     user: str = "postgres"
     password: str = "postgres"
     database: str = "app_db"
+
+    # SQLite 文件路径
+    sqlite_file: str = "data/app.db"
 
     # 连接池配置
     pool_size: int = 10
@@ -41,7 +46,9 @@ class DatabaseSettings(BaseSettings):
     @property
     def async_url(self) -> str:
         """获取异步数据库连接 URL"""
-        if self.driver == "postgresql":
+        if self.driver == "sqlite":
+            return f"sqlite+aiosqlite:///{self.sqlite_file}"
+        elif self.driver == "postgresql":
             return (
                 f"postgresql+asyncpg://{self.user}:{self.password}"
                 f"@{self.host}:{self.port}/{self.database}"
@@ -55,7 +62,9 @@ class DatabaseSettings(BaseSettings):
     @property
     def sync_url(self) -> str:
         """获取同步数据库连接 URL (用于 Alembic)"""
-        if self.driver == "postgresql":
+        if self.driver == "sqlite":
+            return f"sqlite:///{self.sqlite_file}"
+        elif self.driver == "postgresql":
             return (
                 f"postgresql://{self.user}:{self.password}"
                 f"@{self.host}:{self.port}/{self.database}"
@@ -132,10 +141,10 @@ class AppSettings(BaseSettings):
     workers: int = 1
 
     # CORS 配置
-    cors_origins: list[str] = Field(default_factory=lambda: ["*"])
+    cors_origins: List[str] = Field(default_factory=lambda: ["*"])
     cors_allow_credentials: bool = True
-    cors_allow_methods: list[str] = Field(default_factory=lambda: ["*"])
-    cors_allow_headers: list[str] = Field(default_factory=lambda: ["*"])
+    cors_allow_methods: List[str] = Field(default_factory=lambda: ["*"])
+    cors_allow_headers: List[str] = Field(default_factory=lambda: ["*"])
 
     # 子配置
     database: DatabaseSettings = Field(default_factory=DatabaseSettings)

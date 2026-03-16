@@ -2,7 +2,21 @@
 应用入口模块
 
 启动 FastAPI 应用服务器
+
+运行方式：
+    cd backend
+    python -m src.main
+    或
+    uvicorn src.app:app --reload
 """
+
+import sys
+from pathlib import Path
+
+# 确保项目根目录在 Python 路径中
+backend_dir = Path(__file__).resolve().parent.parent
+if str(backend_dir) not in sys.path:
+    sys.path.insert(0, str(backend_dir))
 
 import uvicorn
 

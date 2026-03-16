@@ -4,8 +4,10 @@ Pydantic 基础模式模块
 提供统一的请求/响应模式定义
 """
 
+from __future__ import annotations
+
 from datetime import datetime
-from typing import Any, Generic, List, Optional, TypeVar
+from typing import Any, Dict, Generic, List, Optional, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -54,7 +56,7 @@ class ErrorResponse(BaseSchema):
 
     code: int = Field(description="错误码")
     message: str = Field(description="错误消息")
-    data: dict[str, Any] = Field(default_factory=dict, description="错误详情")
+    data: Dict[str, Any] = Field(default_factory=dict, description="错误详情")
 
 
 class HealthResponse(BaseSchema):
@@ -63,7 +65,7 @@ class HealthResponse(BaseSchema):
     status: str = Field(default="healthy", description="服务状态")
     version: str = Field(description="版本号")
     timestamp: datetime = Field(default_factory=datetime.now, description="时间戳")
-    components: dict[str, str] = Field(
+    components: Dict[str, str] = Field(
         default_factory=lambda: {
             "database": "unknown",
             "redis": "unknown",
