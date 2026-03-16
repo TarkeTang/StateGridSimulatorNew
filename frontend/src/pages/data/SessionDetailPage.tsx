@@ -128,7 +128,7 @@ const SessionDetailPage = () => {
   const [connectTime, setConnectTime] = useState<string | null>(null)
 
   const messageIdRef = useRef(0)
-  const autoSendTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const autoSendTimerRef = useRef<NodeJS.Timeout | NodeJS.Timeout[] | null>(null)
   const autoSendRunningRef = useRef(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -355,38 +355,42 @@ const SessionDetailPage = () => {
     autoSendRunningRef.current = true
     addMessage('system', `自动发送已启动，共 ${enabledItems.length} 条消息`)
 
-    let currentIndex = 0
+    // 每条消息独立按自己的间隔发送
+    enabledItems.forEach((item, index) => {
+      const interval = typeof item.interval === 'number' ? item.interval : 100
 
-    const sendNextMessage = () => {
-      if (!autoSendRunningRef.current) return
+      const sendMessage = () => {
+        if (!autoSendRunningRef.current) return
 
-      const item = enabledItems[currentIndex]
-      setCurrentSendIndex(currentIndex)
+        setCurrentSendIndex(index)
+        sendSingleMessage(item.content)
+      }
 
-      // 发送消息
-      sendSingleMessage(item.content)
+      // 立即发送第一条
+      sendMessage()
 
-      // 计算下一条消息的索引
-      const nextIndex = (currentIndex + 1) % enabledItems.length
-
-      // 等待当前消息的间隔时间后发送下一条
-      autoSendTimerRef.current = setTimeout(() => {
+      // 设置定时器循环发送
+      const timerId = setInterval(() => {
         if (autoSendRunningRef.current) {
-          currentIndex = nextIndex
-          sendNextMessage()
+          sendMessage()
         }
-      }, typeof item.interval === 'number' ? item.interval : 100)
-    }
+      }, interval)
 
-    // 开始发送第一条消息
-    sendNextMessage()
+      // 保存定时器引用以便停止
+      if (!autoSendTimerRef.current) {
+        autoSendTimerRef.current = [] as any
+      }
+      ;(autoSendTimerRef.current as any[]).push(timerId)
+    })
   }
 
   // 停止自动发送
   const stopAutoSend = () => {
     autoSendRunningRef.current = false
     if (autoSendTimerRef.current) {
-      clearTimeout(autoSendTimerRef.current)
+      if (Array.isArray(autoSendTimerRef.current)) {
+        autoSendTimerRef.current.forEach((timer) => clearInterval(timer))
+      }
       autoSendTimerRef.current = null
     }
     setAutoSendActive(false)
