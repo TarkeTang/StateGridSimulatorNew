@@ -381,6 +381,14 @@ const SessionDetailPage = () => {
       return
     }
 
+    // 调试日志
+    console.log('自动发送配置:', enabledConfigs.map(c => ({
+      id: c.id,
+      content: c.message_content,
+      interval_ms: c.interval_ms,
+      is_enabled: c.is_enabled
+    })))
+
     setAutoSendActive(true)
     autoSendRunningRef.current = true
     addMessageToBackend('system', `自动发送已启动，共 ${enabledConfigs.length} 条消息`)
@@ -389,6 +397,7 @@ const SessionDetailPage = () => {
     enabledConfigs.forEach((config, index) => {
       // 确保 interval_ms 有效，默认 1000ms
       const interval = config.interval_ms && config.interval_ms >= 100 ? config.interval_ms : 1000
+      console.log(`消息 ${index + 1}: 间隔 ${interval}ms`)
 
       const sendMessage = () => {
         if (!autoSendRunningRef.current) return
