@@ -74,9 +74,9 @@ const SessionDetailPage = () => {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
 
-  // 面板尺寸状态
-  const [leftPanelWidth, setLeftPanelWidth] = useState(320)
-  const [bottomPanelHeight, setBottomPanelHeight] = useState(180)
+  // 面板尺寸状态 - 使用百分比
+  const [leftPanelWidth, setLeftPanelWidth] = useState(25) // 百分比
+  const [bottomPanelHeight, setBottomPanelHeight] = useState(25) // 百分比
 
   // 拖动状态
   const [isDraggingH, setIsDraggingH] = useState(false)
@@ -156,13 +156,20 @@ const SessionDetailPage = () => {
     loadSession()
   }, [loadDictData, loadSession])
 
-  // 水平拖动处理
+  // 水平拖动处理 - 左右面板宽度联动
   useEffect(() => {
-    if (!isDraggingH) return
+    if (!isDraggingH || !containerRef.current) return
 
     const handleMouseMove = (e: MouseEvent) => {
-      const newWidth = Math.min(500, Math.max(250, e.clientX))
-      setLeftPanelWidth(newWidth)
+      const container = containerRef.current
+      if (!container) return
+
+      const containerRect = container.getBoundingClientRect()
+      const newLeftWidth = ((e.clientX - containerRect.left) / containerRect.width) * 100
+      
+      // 限制范围：左侧最小20%，最大40%
+      const clampedWidth = Math.min(40, Math.max(20, newLeftWidth))
+      setLeftPanelWidth(clampedWidth)
     }
 
     const handleMouseUp = () => {
@@ -182,19 +189,21 @@ const SessionDetailPage = () => {
     }
   }, [isDraggingH])
 
-  // 垂直拖动处理
+  // 垂直拖动处理 - 上下面板高度联动
   useEffect(() => {
     if (!isDraggingV || !containerRef.current) return
 
     const handleMouseMove = (e: MouseEvent) => {
       const container = containerRef.current
       if (!container) return
-      
+
       const containerRect = container.getBoundingClientRect()
-      const rightPanelTop = containerRect.top
       const mouseFromBottom = containerRect.bottom - e.clientY
-      const newHeight = Math.min(400, Math.max(120, mouseFromBottom))
-      setBottomPanelHeight(newHeight)
+      const newBottomHeight = (mouseFromBottom / containerRect.height) * 100
+
+      // 限制范围：底部最小15%，最大50%
+      const clampedHeight = Math.min(50, Math.max(15, newBottomHeight))
+      setBottomPanelHeight(clampedHeight)
     }
 
     const handleMouseUp = () => {
@@ -420,13 +429,15 @@ const SessionDetailPage = () => {
   }
 
   const statusStyle = getStatusStyle(session.status)
+  const rightPanelWidth = 100 - leftPanelWidth
+  const topPanelHeight = 100 - bottomPanelHeight
 
   return (
-    <div className="h-full flex animate-fadeIn" ref={containerRef}>
+    <div className="h-full flex animate-fadeIn overflow-hidden" ref={containerRef}>
       {/* 左侧：会话信息和连接状态 */}
       <div
-        className="flex-shrink-0 flex flex-col gap-4 relative"
-        style={{ width: leftPanelWidth }}
+        className="flex-shrink-0 flex flex-col gap-4 relative overflow-hidden"
+        style={{ width: `${leftPanelWidth}%` }}
       >
         {/* 返回按钮 */}
         <Button variant="secondary" onClick={() => navigate('/data/session')}>
@@ -435,7 +446,7 @@ const SessionDetailPage = () => {
         </Button>
 
         {/* 会话信息（只读） */}
-        <Panel title="会话信息">
+        <Panel title="会话信息" className="flex-1 min-h-0 overflow-auto">
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-gray-400 text-sm">会话名称</span>
@@ -485,7 +496,7 @@ const SessionDetailPage = () => {
         </Panel>
 
         {/* 连接状态 */}
-        <Panel title="连接状态">
+        <Panel title="连接状态" className="flex-shrink-0">
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-gray-400 text-sm">状态</span>
@@ -551,117 +562,125 @@ const SessionDetailPage = () => {
       </div>
 
       {/* 右侧：通信记录和发送配置 */}
-      <div className="flex-1 flex flex-col min-w-0 ml-1">
+      <div
+        className="flex flex-col min-w-0 overflow-hidden"
+        style={{ width: `${rightPanelWidth}%` }}
+      >
         {/* 上部：通信记录 */}
-        <Panel
-          title="通信记录"
-          className="flex-1 flex flex-col min-h-0"
-          headerAction={
-            <div className="flex items-center gap-3">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={showTimestamp}
-                  onChange={(e) => setShowTimestamp(e.target.checked)}
-                  className="accent-signal-blue"
-                />
-                <span className="text-xs text-gray-400">时间戳</span>
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={showHex}
-                  onChange={(e) => setShowHex(e.target.checked)}
-                  className="accent-signal-blue"
-                />
-                <span className="text-xs text-gray-400">HEX</span>
-              </label>
-              <Button variant="secondary" size="sm" onClick={clearMessages}>
-                <Trash2 className="w-3 h-3" />
-                清空
-              </Button>
-              <Button variant="secondary" size="sm" onClick={exportLog}>
-                <Download className="w-3 h-3" />
-                导出
-              </Button>
-            </div>
-          }
+        <div
+          className="flex-1 min-h-0 overflow-hidden"
+          style={{ height: `${topPanelHeight}%` }}
         >
-          <div className="flex-1 overflow-y-auto bg-black/40 rounded p-3 font-mono text-sm">
-            {messages.length === 0 ? (
-              <div className="h-full flex flex-col items-center justify-center text-gray-500">
-                <Activity className="w-12 h-12 mb-3 opacity-30" />
-                <p>暂无通信记录</p>
-                <p className="text-xs mt-1">建立连接后开始通信</p>
+          <Panel
+            title="通信记录"
+            className="h-full flex flex-col"
+            headerAction={
+              <div className="flex items-center gap-3">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={showTimestamp}
+                    onChange={(e) => setShowTimestamp(e.target.checked)}
+                    className="accent-signal-blue"
+                  />
+                  <span className="text-xs text-gray-400">时间戳</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={showHex}
+                    onChange={(e) => setShowHex(e.target.checked)}
+                    className="accent-signal-blue"
+                  />
+                  <span className="text-xs text-gray-400">HEX</span>
+                </label>
+                <Button variant="secondary" size="sm" onClick={clearMessages}>
+                  <Trash2 className="w-3 h-3" />
+                  清空
+                </Button>
+                <Button variant="secondary" size="sm" onClick={exportLog}>
+                  <Download className="w-3 h-3" />
+                  导出
+                </Button>
               </div>
-            ) : (
-              <div className="space-y-1">
-                {messages.map((msg) => (
-                  <div
-                    key={msg.id}
-                    className={`py-1.5 px-2 rounded ${
-                      msg.type === 'send'
-                        ? 'bg-signal-blue/10 border-l-2 border-signal-blue'
-                        : msg.type === 'receive'
-                        ? 'bg-signal-green/10 border-l-2 border-signal-green'
-                        : 'bg-yellow-500/10 border-l-2 border-yellow-500'
-                    }`}
-                  >
-                    <div className="flex items-start gap-2">
-                      {msg.type === 'send' ? (
-                        <ArrowUpRight className="w-4 h-4 mt-0.5 flex-shrink-0 text-signal-blue" />
-                      ) : msg.type === 'receive' ? (
-                        <ArrowDownLeft className="w-4 h-4 mt-0.5 flex-shrink-0 text-signal-green" />
-                      ) : (
-                        <Wifi className="w-4 h-4 mt-0.5 flex-shrink-0 text-yellow-500" />
-                      )}
-
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          {showTimestamp && (
-                            <span className="text-gray-500 text-xs">{msg.timestamp}</span>
-                          )}
-                          <span
-                            className={`text-xs ${
-                              msg.type === 'send'
-                                ? 'text-signal-blue'
-                                : msg.type === 'receive'
-                                ? 'text-signal-green'
-                                : 'text-yellow-500'
-                            }`}
-                          >
-                            [
-                            {msg.type === 'send'
-                              ? '发送'
-                              : msg.type === 'receive'
-                              ? '接收'
-                              : '系统'}
-                            ]
-                          </span>
-                        </div>
-
-                        <div className="text-gray-200 break-all whitespace-pre-wrap">
-                          {msg.content}
-                        </div>
-
-                        {showHex && msg.hex && (
-                          <div className="text-gray-500 text-xs mt-1 font-mono">
-                            HEX: {msg.hex}
-                          </div>
+            }
+          >
+            <div className="flex-1 overflow-y-auto bg-black/40 rounded p-3 font-mono text-sm min-h-0">
+              {messages.length === 0 ? (
+                <div className="h-full flex flex-col items-center justify-center text-gray-500">
+                  <Activity className="w-12 h-12 mb-3 opacity-30" />
+                  <p>暂无通信记录</p>
+                  <p className="text-xs mt-1">建立连接后开始通信</p>
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  {messages.map((msg) => (
+                    <div
+                      key={msg.id}
+                      className={`py-1.5 px-2 rounded ${
+                        msg.type === 'send'
+                          ? 'bg-signal-blue/10 border-l-2 border-signal-blue'
+                          : msg.type === 'receive'
+                          ? 'bg-signal-green/10 border-l-2 border-signal-green'
+                          : 'bg-yellow-500/10 border-l-2 border-yellow-500'
+                      }`}
+                    >
+                      <div className="flex items-start gap-2">
+                        {msg.type === 'send' ? (
+                          <ArrowUpRight className="w-4 h-4 mt-0.5 flex-shrink-0 text-signal-blue" />
+                        ) : msg.type === 'receive' ? (
+                          <ArrowDownLeft className="w-4 h-4 mt-0.5 flex-shrink-0 text-signal-green" />
+                        ) : (
+                          <Wifi className="w-4 h-4 mt-0.5 flex-shrink-0 text-yellow-500" />
                         )}
+
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            {showTimestamp && (
+                              <span className="text-gray-500 text-xs">{msg.timestamp}</span>
+                            )}
+                            <span
+                              className={`text-xs ${
+                                msg.type === 'send'
+                                  ? 'text-signal-blue'
+                                  : msg.type === 'receive'
+                                  ? 'text-signal-green'
+                                  : 'text-yellow-500'
+                              }`}
+                            >
+                              [
+                              {msg.type === 'send'
+                                ? '发送'
+                                : msg.type === 'receive'
+                                ? '接收'
+                                : '系统'}
+                              ]
+                            </span>
+                          </div>
+
+                          <div className="text-gray-200 break-all whitespace-pre-wrap">
+                            {msg.content}
+                          </div>
+
+                          {showHex && msg.hex && (
+                            <div className="text-gray-500 text-xs mt-1 font-mono">
+                              HEX: {msg.hex}
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
-                <div ref={messagesEndRef} />
-              </div>
-            )}
-          </div>
-        </Panel>
+                  ))}
+                  <div ref={messagesEndRef} />
+                </div>
+              )}
+            </div>
+          </Panel>
+        </div>
 
         {/* 垂直拖动手柄 */}
         <div
-          className={`h-1 cursor-ns-resize z-10 group my-1 ${
+          className={`h-1 cursor-ns-resize z-10 group flex-shrink-0 ${
             isDraggingV ? 'bg-signal-blue' : 'hover:bg-signal-blue/50'
           }`}
           onMouseDown={(e) => {
@@ -673,13 +692,16 @@ const SessionDetailPage = () => {
         </div>
 
         {/* 下部：发送配置 */}
-        <div style={{ height: bottomPanelHeight }} className="flex-shrink-0">
+        <div
+          className="flex-shrink-0 overflow-hidden"
+          style={{ height: `${bottomPanelHeight}%` }}
+        >
           <Panel title="发送配置" className="h-full flex flex-col">
             <div className="flex gap-4 flex-1 min-h-0">
               {/* 发送模式 */}
               <div className="flex flex-col gap-2 flex-shrink-0">
                 <span className="text-xs text-gray-400">格式</span>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-col gap-1">
                   <label className="flex items-center gap-1.5 cursor-pointer">
                     <input
                       type="radio"
