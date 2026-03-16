@@ -1,0 +1,40 @@
+# 应用配置文件
+# 敏感信息请使用环境变量覆盖
+
+app:
+  name: "State Grid Simulator"
+  version: "1.0.0"
+  description: "State Grid Simulator Web Application"
+  debug: false
+
+server:
+  host: "0.0.0.0"
+  port: 8000
+  workers: 1
+
+database:
+  driver: postgresql
+  host: localhost
+  port: 5432
+  user: postgres
+  password: postgres
+  database: app_db
+  pool_size: 10
+  max_overflow: 20
+
+redis:
+  host: localhost
+  port: 6379
+  db: 0
+
+jwt:
+  algorithm: HS256
+  access_token_expire_minutes: 30
+  refresh_token_expire_days: 7
+
+logging:
+  level: INFO
+  dir: logs
+  rotation: "00:00"
+  retention: "30 days"
+  compression: zip

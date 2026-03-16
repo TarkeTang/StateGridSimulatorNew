@@ -1,0 +1,195 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* 全局样式 */
+:root {
+  --signal-green: #00ff88;
+  --signal-red: #ff3366;
+  --signal-yellow: #ffcc00;
+  --signal-blue: #00ccff;
+  --panel-bg: #1a2332;
+  --panel-card: #243447;
+  --panel-border: #3a4a5c;
+}
+
+/* 基础样式 */
+body {
+  font-family: 'JetBrains Mono', monospace;
+  background-color: var(--panel-bg);
+  color: #e0e6ed;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+/* 滚动条样式 */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--panel-bg);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--panel-border);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #4a5a6c;
+}
+
+/* 面板样式 */
+@layer components {
+  .panel {
+    @apply bg-panel-card border border-panel-border rounded-lg;
+    box-shadow: 
+      0 4px 6px -1px rgba(0, 0, 0, 0.3),
+      inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  }
+
+  .panel-header {
+    @apply px-4 py-3 border-b border-panel-border flex items-center justify-between;
+    background: linear-gradient(180deg, rgba(255,255,255,0.03) 0%, transparent 100%);
+  }
+
+  .panel-title {
+    @apply font-display text-sm tracking-wider uppercase;
+    color: var(--signal-blue);
+  }
+
+  .panel-content {
+    @apply p-4;
+  }
+
+  /* 按钮样式 */
+  .btn {
+    @apply px-4 py-2 rounded font-medium transition-all duration-200;
+    @apply flex items-center justify-center gap-2;
+  }
+
+  .btn-primary {
+    @apply btn;
+    background: linear-gradient(180deg, #00ccff 0%, #0099cc 100%);
+    color: #0a1929;
+    box-shadow: 0 2px 8px rgba(0, 204, 255, 0.3);
+  }
+
+  .btn-primary:hover {
+    box-shadow: 0 4px 12px rgba(0, 204, 255, 0.5);
+    transform: translateY(-1px);
+  }
+
+  .btn-success {
+    @apply btn;
+    background: linear-gradient(180deg, #00ff88 0%, #00cc6a 100%);
+    color: #0a1929;
+    box-shadow: 0 2px 8px rgba(0, 255, 136, 0.3);
+  }
+
+  .btn-success:hover {
+    box-shadow: 0 4px 12px rgba(0, 255, 136, 0.5);
+    transform: translateY(-1px);
+  }
+
+  .btn-danger {
+    @apply btn;
+    background: linear-gradient(180deg, #ff3366 0%, #cc2952 100%);
+    color: #fff;
+    box-shadow: 0 2px 8px rgba(255, 51, 102, 0.3);
+  }
+
+  .btn-danger:hover {
+    box-shadow: 0 4px 12px rgba(255, 51, 102, 0.5);
+    transform: translateY(-1px);
+  }
+
+  .btn-secondary {
+    @apply btn bg-panel-card border border-panel-border text-gray-300;
+  }
+
+  .btn-secondary:hover {
+    @apply bg-industrial-700 text-white;
+  }
+
+  /* 输入框样式 */
+  .input-field {
+    @apply w-full px-3 py-2 rounded border transition-all duration-200;
+    background: rgba(0, 0, 0, 0.3);
+    border-color: var(--panel-border);
+    color: #e0e6ed;
+  }
+
+  .input-field:focus {
+    outline: none;
+    border-color: var(--signal-blue);
+    box-shadow: 0 0 0 2px rgba(0, 204, 255, 0.2);
+  }
+
+  .input-field:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  /* 状态指示器 */
+  .status-indicator {
+    @apply w-3 h-3 rounded-full;
+  }
+
+  .status-indicator.online {
+    background: var(--signal-green);
+    box-shadow: 0 0 8px var(--signal-green);
+    animation: pulse 2s infinite;
+  }
+
+  .status-indicator.offline {
+    background: var(--signal-red);
+    box-shadow: 0 0 8px var(--signal-red);
+  }
+
+  .status-indicator.warning {
+    background: var(--signal-yellow);
+    box-shadow: 0 0 8px var(--signal-yellow);
+  }
+
+  /* 数据标签 */
+  .data-label {
+    @apply text-xs text-gray-400 uppercase tracking-wider;
+  }
+
+  .data-value {
+    @apply font-mono text-lg;
+  }
+
+  .data-value.highlight {
+    color: var(--signal-blue);
+  }
+}
+
+/* 动画 */
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.3s ease-out;
+}
