@@ -15,8 +15,11 @@ import {
   Wifi,
   WifiOff,
   RefreshCw,
+  Timer,
+  X,
 } from 'lucide-react'
 import { sessionService, type SessionConfig } from '@/services/session'
+import { getDictName, type DictData } from '@/services/dict'
 
 interface MessageItem {
   id: number
@@ -24,6 +27,52 @@ interface MessageItem {
   content: string
   timestamp: string
   hex?: string
+}
+
+// 格式化 XML
+const formatXml = (xml: string): string => {
+  try {
+    // 简单的 XML 格式化
+    let formatted = ''
+    let indent = ''
+    const nodes = xml.replace(/>\s*</g, '><').split(/(<[^>]+>)/g)
+
+    for (const node of nodes) {
+      if (!node.trim()) continue
+
+      if (node.startsWith('</')) {
+        // 闭合标签，减少缩进
+        indent = indent.slice(2)
+        formatted += indent + node + '\n'
+      } else if (node.startsWith('<') && !node.startsWith('<?') && !node.endsWith('/>')) {
+        // 开始标签
+        formatted += indent + node + '\n'
+        if (!node.includes('</')) {
+          indent += '  '
+        }
+      } else if (node.startsWith('<?') || node.endsWith('/>')) {
+        // 声明或自闭合标签
+        formatted += indent + node + '\n'
+      } else {
+        // 文本内容
+        formatted += indent + node.trim() + '\n'
+      }
+    }
+
+    return formatted.trim()
+  } catch {
+    return xml
+  }
+}
+
+// 格式化 JSON
+const formatJson = (json: string): string => {
+  try {
+    const obj = JSON.parse(json)
+    return JSON.stringify(obj, null, 2)
+  } catch {
+    return json
+  }
 }
 
 const SessionDetailPage = () => {
@@ -35,6 +84,9 @@ const SessionDetailPage = () => {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
+  // 字典数据
+  const [protocolTypes, setProtocolTypes] = useState<DictData[]>([])
+
   // 连接状态
   const [isConnected, setIsConnected] = useState(false)
   const [isConnecting, setIsConnecting] = useState(false)
@@ -42,9 +94,10 @@ const SessionDetailPage = () => {
 
   // 发送配置
   const [sendData, setSendData] = useState('')
-  const [sendMode, setSendMode] = useState<'text' | 'hex'>('text')
-  const [autoSend, setAutoSend] = useState(false)
+  const [sendMode, setSendMode] = useState<'text' | 'xml' | 'json'>('text')
+  const [autoSendDialogOpen, setAutoSendDialogOpen] = useState(false)
   const [autoSendInterval, setAutoSendInterval] = useState(1000)
+  const [autoSendActive, setAutoSendActive] = useState(false)
 
   // 消息记录
   const [messages, setMessages] = useState<MessageItem[]>([])
@@ -59,6 +112,19 @@ const SessionDetailPage = () => {
   const messageIdRef = useRef(0)
   const autoSendTimerRef = useRef<NodeJS.Timeout | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+
+  // 加载字典数据
+  const loadDictData = useCallback(async () => {
+    try {
+      const { dictService } = await import('@/services/dict')
+      const response = await dictService.getProtocolTypes()
+      if (response.code === 200 && response.data) {
+        setProtocolTypes(response.data)
+      }
+    } catch (err) {
+      console.error('加载字典数据失败:', err)
+    }
+  }, [])
 
   // 加载会话配置
   const loadSession = useCallback(async () => {
@@ -82,8 +148,9 @@ const SessionDetailPage = () => {
   }, [id])
 
   useEffect(() => {
+    loadDictData()
     loadSession()
-  }, [loadSession])
+  }, [loadDictData, loadSession])
 
   // 获取当前时间戳
   const getTimestamp = () => {
@@ -101,12 +168,6 @@ const SessionDetailPage = () => {
       .split('')
       .map((char) => char.charCodeAt(0).toString(16).toUpperCase().padStart(2, '0'))
       .join(' ')
-  }
-
-  // 十六进制转字符串
-  const hexToString = (hex: string) => {
-    const hexArray = hex.replace(/\s+/g, '').match(/.{1,2}/g) || []
-    return hexArray.map((byte) => String.fromCharCode(parseInt(byte, 16))).join('')
   }
 
   // 添加消息
@@ -176,12 +237,10 @@ const SessionDetailPage = () => {
   const handleSend = async () => {
     if (!isConnected || !sendData.trim() || !id) return
 
-    const content = sendMode === 'hex' ? hexToString(sendData) : sendData
-
     try {
-      const response = await sessionService.send(Number(id), content)
+      const response = await sessionService.send(Number(id), sendData)
       if (response.code === 200) {
-        addMessage('send', content)
+        addMessage('send', sendData)
         setSendData('')
       } else {
         alert(response.message || '发送失败')
@@ -193,21 +252,28 @@ const SessionDetailPage = () => {
 
   // 开始自动发送
   const startAutoSend = () => {
-    if (!sendData.trim()) return
-    setAutoSend(true)
+    if (!sendData.trim()) {
+      alert('请先输入发送内容')
+      return
+    }
+    setAutoSendActive(true)
     autoSendTimerRef.current = setInterval(() => {
-      const content = sendMode === 'hex' ? hexToString(sendData) : sendData
-      addMessage('send', content)
+      if (sendData.trim()) {
+        sessionService.send(Number(id), sendData)
+        addMessage('send', sendData)
+      }
     }, autoSendInterval)
+    addMessage('system', `自动发送已启动，周期: ${autoSendInterval}ms`)
   }
 
   // 停止自动发送
   const stopAutoSend = () => {
-    setAutoSend(false)
+    setAutoSendActive(false)
     if (autoSendTimerRef.current) {
       clearInterval(autoSendTimerRef.current)
       autoSendTimerRef.current = null
     }
+    addMessage('system', '自动发送已停止')
   }
 
   // 清空消息
@@ -263,6 +329,21 @@ const SessionDetailPage = () => {
     }
   }
 
+  // 格式化显示内容
+  const getDisplayContent = (content: string): string => {
+    if (sendMode === 'xml') {
+      return formatXml(content)
+    } else if (sendMode === 'json') {
+      return formatJson(content)
+    }
+    return content
+  }
+
+  // 处理输入变化
+  const handleSendDataChange = (value: string) => {
+    setSendData(value)
+  }
+
   if (loading) {
     return (
       <div className="h-full flex items-center justify-center">
@@ -276,7 +357,7 @@ const SessionDetailPage = () => {
       <div className="h-full flex flex-col items-center justify-center text-gray-400">
         <WifiOff className="w-12 h-12 mb-4 opacity-30" />
         <p>{error || '会话不存在'}</p>
-        <Button variant="secondary" className="mt-4" onClick={() => navigate('/data/tcp-session')}>
+        <Button variant="secondary" className="mt-4" onClick={() => navigate('/data/session')}>
           <ArrowLeft className="w-4 h-4" />
           返回列表
         </Button>
@@ -291,7 +372,7 @@ const SessionDetailPage = () => {
       {/* 左侧：会话信息和连接状态 */}
       <div className="w-80 flex-shrink-0 flex flex-col gap-4">
         {/* 返回按钮 */}
-        <Button variant="secondary" onClick={() => navigate('/data/tcp-session')}>
+        <Button variant="secondary" onClick={() => navigate('/data/session')}>
           <ArrowLeft className="w-4 h-4" />
           返回列表
         </Button>
@@ -305,7 +386,9 @@ const SessionDetailPage = () => {
             </div>
             <div className="flex items-center justify-between">
               <span className="text-gray-400 text-sm">协议类型</span>
-              <span className="text-gray-300 text-sm">{session.protocol_type}</span>
+              <span className="text-gray-300 text-sm">
+                {getDictName(protocolTypes, session.protocol_type)}
+              </span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-gray-400 text-sm">连接模式</span>
@@ -490,7 +573,9 @@ const SessionDetailPage = () => {
                         </div>
 
                         {/* 内容 */}
-                        <div className="text-gray-200 break-all">{msg.content}</div>
+                        <div className="text-gray-200 break-all whitespace-pre-wrap">
+                          {msg.content}
+                        </div>
 
                         {/* HEX显示 */}
                         {showHex && msg.hex && (
@@ -510,53 +595,62 @@ const SessionDetailPage = () => {
 
         {/* 下部：发送配置 */}
         <Panel title="发送配置">
-          <div className="flex items-end gap-4">
+          <div className="flex gap-4">
             {/* 发送模式 */}
-            <div className="flex items-center gap-4">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="radio"
-                  name="sendMode"
-                  checked={sendMode === 'text'}
-                  onChange={() => setSendMode('text')}
-                  className="accent-signal-blue"
-                />
-                <span className="text-sm text-gray-300">文本</span>
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="radio"
-                  name="sendMode"
-                  checked={sendMode === 'hex'}
-                  onChange={() => setSendMode('hex')}
-                  className="accent-signal-blue"
-                />
-                <span className="text-sm text-gray-300">HEX</span>
-              </label>
+            <div className="flex flex-col gap-2">
+              <span className="text-xs text-gray-400">格式</span>
+              <div className="flex items-center gap-2">
+                <label className="flex items-center gap-1.5 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="sendMode"
+                    checked={sendMode === 'text'}
+                    onChange={() => setSendMode('text')}
+                    className="accent-signal-blue"
+                  />
+                  <span className="text-sm text-gray-300">文本</span>
+                </label>
+                <label className="flex items-center gap-1.5 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="sendMode"
+                    checked={sendMode === 'xml'}
+                    onChange={() => setSendMode('xml')}
+                    className="accent-signal-blue"
+                  />
+                  <span className="text-sm text-gray-300">XML</span>
+                </label>
+                <label className="flex items-center gap-1.5 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="sendMode"
+                    checked={sendMode === 'json'}
+                    onChange={() => setSendMode('json')}
+                    className="accent-signal-blue"
+                  />
+                  <span className="text-sm text-gray-300">JSON</span>
+                </label>
+              </div>
             </div>
 
             {/* 发送内容 */}
             <div className="flex-1">
               <textarea
-                value={sendData}
-                onChange={(e) => setSendData(e.target.value)}
+                value={getDisplayContent(sendData)}
+                onChange={(e) => handleSendDataChange(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && e.ctrlKey) {
                     handleSend()
                   }
                 }}
-                placeholder={
-                  sendMode === 'hex'
-                    ? '输入十六进制，如: 01 02 03 (Ctrl+Enter发送)'
-                    : '输入发送数据... (Ctrl+Enter发送)'
-                }
-                className="input-field h-16 resize-none font-mono text-sm w-full"
+                placeholder="输入发送数据... (Ctrl+Enter发送)"
+                className="input-field h-[66px] resize-none font-mono text-sm w-full"
                 disabled={!isConnected}
               />
             </div>
 
             {/* 发送按钮 */}
-            <div className="flex items-center gap-2">
+            <div className="flex flex-col gap-2">
               <Button
                 variant="primary"
                 onClick={handleSend}
@@ -565,37 +659,76 @@ const SessionDetailPage = () => {
                 <Send className="w-4 h-4" />
                 发送
               </Button>
-            </div>
-
-            {/* 自动发送 */}
-            <div className="flex items-center gap-3 border-l border-panel-border pl-4">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={autoSend}
-                  onChange={(e) => (e.target.checked ? startAutoSend() : stopAutoSend())}
-                  disabled={!isConnected || !sendData.trim()}
-                  className="accent-signal-blue"
-                />
-                <span className="text-sm text-gray-300">自动发送</span>
-              </label>
-              {autoSend && (
-                <div className="flex items-center gap-2">
-                  <input
-                    type="number"
-                    value={autoSendInterval}
-                    onChange={(e) => setAutoSendInterval(Number(e.target.value))}
-                    className="input-field w-24 text-sm py-1"
-                    min={100}
-                    step={100}
-                  />
-                  <span className="text-sm text-gray-400">ms</span>
-                </div>
-              )}
+              <Button
+                variant={autoSendActive ? 'danger' : 'secondary'}
+                onClick={() => {
+                  if (autoSendActive) {
+                    stopAutoSend()
+                  } else {
+                    setAutoSendDialogOpen(true)
+                  }
+                }}
+                disabled={!isConnected || !sendData.trim()}
+              >
+                <Timer className="w-4 h-4" />
+                {autoSendActive ? '停止' : '自动发送'}
+              </Button>
             </div>
           </div>
         </Panel>
       </div>
+
+      {/* 自动发送设置弹窗 */}
+      {autoSendDialogOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-panel-card border border-panel-border rounded-lg w-[360px]">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-panel-border">
+              <h3 className="text-base font-medium">自动发送设置</h3>
+              <button
+                onClick={() => setAutoSendDialogOpen(false)}
+                className="text-gray-400 hover:text-white transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-4 space-y-4">
+              <div>
+                <label className="block text-sm text-gray-400 mb-2">发送周期 (毫秒)</label>
+                <input
+                  type="number"
+                  value={autoSendInterval}
+                  onChange={(e) => setAutoSendInterval(Math.max(100, Number(e.target.value)))}
+                  className="input-field w-full"
+                  min={100}
+                  step={100}
+                  placeholder="1000"
+                />
+                <p className="text-xs text-gray-500 mt-1">最小值: 100ms</p>
+              </div>
+
+              <div className="p-3 bg-yellow-500/10 border border-yellow-500/30 rounded text-sm text-yellow-500">
+                <p>自动发送将按照设定的周期重复发送当前输入的内容。</p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 px-4 py-3 border-t border-panel-border">
+              <Button variant="secondary" onClick={() => setAutoSendDialogOpen(false)}>
+                取消
+              </Button>
+              <Button
+                variant="success"
+                onClick={() => {
+                  setAutoSendDialogOpen(false)
+                  startAutoSend()
+                }}
+              >
+                开始发送
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -109,6 +109,13 @@ async def init_db() -> None:
         await conn.run_sync(Base.metadata.create_all)
     log.info("数据库表初始化完成")
 
+    # 初始化字典数据
+    async with AsyncSessionLocal() as session:
+        from src.repositories.dict_repository import DictRepository
+        repo = DictRepository(session)
+        await repo.init_default_data()
+        await session.commit()
+
 
 async def close_db() -> None:
     """关闭数据库连接"""
