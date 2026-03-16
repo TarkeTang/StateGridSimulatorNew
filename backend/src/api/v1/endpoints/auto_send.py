@@ -44,7 +44,7 @@ async def create_config(
         result = await repo.create(data)
         await db.commit()
         log.info(f"创建自动发送配置成功: session_id={data.session_id}")
-        return BaseResponse(data=result, message="创建成功")
+        return BaseResponse(data=AutoSendConfigResponse.model_validate(result), message="创建成功")
     except Exception as e:
         await db.rollback()
         log.error(f"创建自动发送配置失败: {e}")
@@ -118,7 +118,7 @@ async def update_config(
             )
         await db.commit()
         log.info(f"更新自动发送配置成功: id={config_id}")
-        return BaseResponse(data=result, message="更新成功")
+        return BaseResponse(data=AutoSendConfigResponse.model_validate(result), message="更新成功")
     except HTTPException:
         raise
     except Exception as e:
