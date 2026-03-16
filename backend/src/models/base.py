@@ -4,8 +4,10 @@ SQLAlchemy 基础模型模块
 提供所有模型的基类和通用混入类
 """
 
+from __future__ import annotations
+
 from datetime import datetime
-from typing import Any
+from typing import Any, Dict, Optional
 
 from sqlalchemy import DateTime, func
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
@@ -14,7 +16,7 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 class Base(DeclarativeBase):
     """SQLAlchemy 声明式基类"""
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> Dict[str, Any]:
         """转换为字典"""
         return {
             column.name: getattr(self, column.name)
@@ -48,7 +50,7 @@ class SoftDeleteMixin:
         nullable=False,
         comment="是否已删除",
     )
-    deleted_at: Mapped[datetime | None] = mapped_column(
+    deleted_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True),
         nullable=True,
         comment="删除时间",

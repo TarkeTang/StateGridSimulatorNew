@@ -4,7 +4,9 @@
 定义应用级别的异常类，提供统一的错误处理机制
 """
 
-from typing import Any, Optional
+from __future__ import annotations
+
+from typing import Any, Dict, Optional
 
 
 class AppException(Exception):

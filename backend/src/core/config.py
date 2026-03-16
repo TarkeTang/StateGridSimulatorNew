@@ -8,9 +8,11 @@
 - 类型安全验证
 """
 
+from __future__ import annotations
+
 from functools import lru_cache
 from pathlib import Path
-from typing import Literal, Optional
+from typing import List, Literal, Optional
 
 import yaml
 from pydantic import Field, field_validator
@@ -132,10 +134,10 @@ class AppSettings(BaseSettings):
     workers: int = 1
 
     # CORS 配置
-    cors_origins: list[str] = Field(default_factory=lambda: ["*"])
+    cors_origins: List[str] = Field(default_factory=lambda: ["*"])
     cors_allow_credentials: bool = True
-    cors_allow_methods: list[str] = Field(default_factory=lambda: ["*"])
-    cors_allow_headers: list[str] = Field(default_factory=lambda: ["*"])
+    cors_allow_methods: List[str] = Field(default_factory=lambda: ["*"])
+    cors_allow_headers: List[str] = Field(default_factory=lambda: ["*"])
 
     # 子配置
     database: DatabaseSettings = Field(default_factory=DatabaseSettings)

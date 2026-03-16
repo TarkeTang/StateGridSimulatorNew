@@ -7,8 +7,10 @@
 - 权限检查
 """
 
+from __future__ import annotations
+
 from datetime import datetime, timedelta, timezone
-from typing import Any, Optional
+from typing import Any, Dict, Optional, Union
 
 from jose import JWTError, jwt
 from passlib.context import CryptContext
@@ -39,9 +41,9 @@ class TokenManager:
 
     @staticmethod
     def create_access_token(
-        subject: str | int,
+        subject: Union[str, int],
         expires_delta: Optional[timedelta] = None,
-        extra_data: Optional[dict[str, Any]] = None,
+        extra_data: Optional[Dict[str, Any]] = None,
     ) -> str:
         """
         创建访问令牌
@@ -77,7 +79,7 @@ class TokenManager:
 
     @staticmethod
     def create_refresh_token(
-        subject: str | int,
+        subject: Union[str, int],
         expires_delta: Optional[timedelta] = None,
     ) -> str:
         """
@@ -110,7 +112,7 @@ class TokenManager:
         )
 
     @staticmethod
-    def decode_token(token: str) -> dict[str, Any]:
+    def decode_token(token: str) -> Dict[str, Any]:
         """
         解码并验证令牌
 
@@ -134,7 +136,7 @@ class TokenManager:
             raise UnauthorizedError(message="令牌无效或已过期", data={"error": str(e)})
 
     @staticmethod
-    def verify_access_token(token: str) -> dict[str, Any]:
+    def verify_access_token(token: str) -> Dict[str, Any]:
         """验证访问令牌"""
         payload = TokenManager.decode_token(token)
         if payload.get("type") != "access":
@@ -142,7 +144,7 @@ class TokenManager:
         return payload
 
     @staticmethod
-    def verify_refresh_token(token: str) -> dict[str, Any]:
+    def verify_refresh_token(token: str) -> Dict[str, Any]:
         """验证刷新令牌"""
         payload = TokenManager.decode_token(token)
         if payload.get("type") != "refresh":

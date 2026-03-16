@@ -4,8 +4,10 @@ Pydantic 基础模式模块
 提供统一的请求/响应模式定义
 """
 
+from __future__ import annotations
+
 from datetime import datetime
-from typing import Any, Generic, List, Optional, TypeVar
+from typing import Any, Dict, Generic, List, Optional, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field
 
