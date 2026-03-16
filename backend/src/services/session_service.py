@@ -6,7 +6,7 @@
 
 from __future__ import annotations
 
-from typing import List, Optional, Tuple
+from typing import List, Optional
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -19,6 +19,7 @@ from src.schemas.session import (
     SessionConfigListResponse,
 )
 from src.utils.logger import get_logger
+from src.utils.tcp_manager import tcp_manager
 
 log = get_logger("service")
 
@@ -102,45 +103,85 @@ class SessionConfigService:
 
     async def delete_session(self, config_id: int) -> bool:
         """删除会话配置"""
+        # 先断开连接
+        await tcp_manager.disconnect(config_id)
         return await self.repository.delete(config_id)
 
-    async def connect_session(self, config_id: int) -> Optional[SessionConfigResponse]:
+    async def connect_session(self, config_id: int) -> SessionConfigResponse:
         """连接会话"""
         config = await self.repository.get_by_id(config_id)
         if not config:
-            return None
+            raise ValueError("会话配置不存在")
 
         if config.status == "connected":
             raise ValueError("会话已连接")
 
+        if not config.host or not config.port:
+            raise ValueError("会话配置缺少主机地址或端口")
+
         # 更新状态为连接中
         await self.repository.update_status(config_id, "connecting")
 
-        # TODO: 实际连接逻辑
-        # 这里应该调用实际的连接处理程序
+        try:
+            # 创建 TCP 连接
+            conn = await tcp_manager.create_connection(
+                session_id=config_id,
+                session_name=config.name,
+                host=config.host,
+                port=config.port,
+                auto_reconnect=config.auto_reconnect,
+                reconnect_interval=config.reconnect_interval,
+                max_reconnect_times=config.max_reconnect_times,
+                buffer_size=config.buffer_size,
+                encoding=config.encoding,
+            )
 
-        # 模拟连接成功
-        config = await self.repository.update_status(config_id, "connected")
-        log.info(f"会话连接成功: {config.name}, ID: {config_id}")
+            # 执行连接
+            success = await conn.connect()
 
-        return SessionConfigResponse.model_validate(config)
+            if success:
+                # 更新数据库状态
+                config = await self.repository.update_status(config_id, "connected")
+                log.info(f"会话连接成功: {config.name}, {config.host}:{config.port}")
+            else:
+                # 更新数据库状态为错误
+                config = await self.repository.update_status(
+                    config_id, "error", "连接失败"
+                )
+                raise ValueError("连接失败")
 
-    async def disconnect_session(self, config_id: int) -> Optional[SessionConfigResponse]:
+            return SessionConfigResponse.model_validate(config)
+
+        except Exception as e:
+            # 更新数据库状态为错误
+            await self.repository.update_status(config_id, "error", str(e))
+            raise
+
+    async def disconnect_session(self, config_id: int) -> SessionConfigResponse:
         """断开会话"""
         config = await self.repository.get_by_id(config_id)
         if not config:
-            return None
+            raise ValueError("会话配置不存在")
+
+        # 断开 TCP 连接
+        await tcp_manager.disconnect(config_id)
+
+        # 更新数据库状态
+        config = await self.repository.update_status(config_id, "disconnected")
+        log.info(f"会话已断开: {config.name}")
+
+        return SessionConfigResponse.model_validate(config)
+
+    async def send_message(self, config_id: int, data: str) -> bool:
+        """发送消息"""
+        config = await self.repository.get_by_id(config_id)
+        if not config:
+            raise ValueError("会话配置不存在")
 
         if config.status != "connected":
             raise ValueError("会话未连接")
 
-        # TODO: 实际断开逻辑
-        # 这里应该调用实际的断开处理程序
-
-        config = await self.repository.update_status(config_id, "disconnected")
-        log.info(f"会话已断开: {config.name}, ID: {config_id}")
-
-        return SessionConfigResponse.model_validate(config)
+        return await tcp_manager.send(config_id, data)
 
     async def get_all_enabled_sessions(self) -> List[SessionConfigResponse]:
         """获取所有启用的会话配置"""

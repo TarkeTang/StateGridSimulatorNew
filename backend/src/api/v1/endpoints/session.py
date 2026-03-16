@@ -233,3 +233,37 @@ async def disconnect_session(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="断开失败",
         )
+
+
+@router.post(
+    "/{config_id}/send",
+    response_model=BaseResponse[None],
+    summary="发送消息",
+    description="通过指定会话发送消息",
+)
+async def send_message(
+    config_id: int,
+    data: str,
+    db: AsyncSession = Depends(get_db_session),
+):
+    """发送消息"""
+    try:
+        service = SessionConfigService(db)
+        success = await service.send_message(config_id, data)
+        if not success:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="发送失败",
+            )
+        log.info(f"发送消息成功: config_id={config_id}")
+        return BaseResponse(message="发送成功")
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception as e:
+        log.error(f"发送消息失败: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="发送失败",
+        )
