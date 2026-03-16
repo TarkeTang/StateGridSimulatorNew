@@ -35,7 +35,7 @@ interface MessageItem {
 interface AutoSendItem {
   id: number
   content: string
-  interval: number // 毫秒
+  interval: number | '' // 毫秒，允许空值便于输入
   enabled: boolean
 }
 
@@ -343,9 +343,11 @@ const SessionDetailPage = () => {
 
   // 开始自动发送
   const startAutoSend = () => {
-    const enabledItems = autoSendItems.filter((item) => item.enabled && item.content.trim())
+    const enabledItems = autoSendItems.filter(
+      (item) => item.enabled && item.content.trim() && item.interval !== '' && item.interval >= 100
+    )
     if (enabledItems.length === 0) {
-      alert('请至少添加一条有效的发送消息')
+      alert('请至少添加一条有效的发送消息（间隔时间需 >= 100ms）')
       return
     }
 
@@ -373,7 +375,7 @@ const SessionDetailPage = () => {
           currentIndex = nextIndex
           sendNextMessage()
         }
-      }, item.interval)
+      }, typeof item.interval === 'number' ? item.interval : 100)
     }
 
     // 开始发送第一条消息
@@ -897,9 +899,23 @@ const SessionDetailPage = () => {
                           <input
                             type="number"
                             value={item.interval}
-                            onChange={(e) =>
-                              updateAutoSendItem(item.id, 'interval', Math.min(86400000, Math.max(0, Number(e.target.value))))
-                            }
+                            onChange={(e) => {
+                              const val = e.target.value
+                              if (val === '') {
+                                updateAutoSendItem(item.id, 'interval', '' as any)
+                              } else {
+                                const num = Number(val)
+                                if (num <= 86400000) {
+                                  updateAutoSendItem(item.id, 'interval', num)
+                                }
+                              }
+                            }}
+                            onBlur={(e) => {
+                              const val = Number(e.target.value)
+                              if (val < 100) {
+                                updateAutoSendItem(item.id, 'interval', 100)
+                              }
+                            }}
                             className="input-field w-20 text-sm py-1"
                             min={0}
                             max={86400000}
