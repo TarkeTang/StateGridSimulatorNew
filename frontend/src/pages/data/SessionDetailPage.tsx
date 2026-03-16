@@ -17,6 +17,8 @@ import {
   RefreshCw,
   Timer,
   X,
+  Plus,
+  GripVertical,
 } from 'lucide-react'
 import { sessionService, type SessionConfig } from '@/services/session'
 import { getDictName, type DictData } from '@/services/dict'
@@ -27,6 +29,14 @@ interface MessageItem {
   content: string
   timestamp: string
   hex?: string
+}
+
+// 自动发送消息配置
+interface AutoSendItem {
+  id: number
+  content: string
+  interval: number // 毫秒
+  enabled: boolean
 }
 
 // 格式化 XML
@@ -74,7 +84,7 @@ const SessionDetailPage = () => {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
 
-  // 面板尺寸状态 - 使用像素值
+  // 面板尺寸状态
   const [leftPanelWidth, setLeftPanelWidth] = useState(320)
   const [bottomPanelHeight, setBottomPanelHeight] = useState(200)
 
@@ -98,9 +108,14 @@ const SessionDetailPage = () => {
   // 发送配置
   const [sendData, setSendData] = useState('')
   const [sendMode, setSendMode] = useState<'text' | 'xml' | 'json'>('text')
+
+  // 自动发送配置
   const [autoSendDialogOpen, setAutoSendDialogOpen] = useState(false)
-  const [autoSendInterval, setAutoSendInterval] = useState(1000)
+  const [autoSendItems, setAutoSendItems] = useState<AutoSendItem[]>([
+    { id: 1, content: '', interval: 1000, enabled: true },
+  ])
   const [autoSendActive, setAutoSendActive] = useState(false)
+  const [currentSendIndex, setCurrentSendIndex] = useState(0)
 
   // 消息记录
   const [messages, setMessages] = useState<MessageItem[]>([])
@@ -116,6 +131,7 @@ const SessionDetailPage = () => {
   const autoSendTimerRef = useRef<NodeJS.Timeout | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+  const autoSendItemIdRef = useRef(2)
 
   // 加载字典数据
   const loadDictData = useCallback(async () => {
@@ -308,27 +324,76 @@ const SessionDetailPage = () => {
     }
   }
 
+  // 发送单条消息
+  const sendSingleMessage = async (content: string) => {
+    if (!content.trim() || !id) return false
+
+    try {
+      const response = await sessionService.send(Number(id), content)
+      if (response.code === 200) {
+        addMessage('send', content)
+        return true
+      }
+      return false
+    } catch {
+      return false
+    }
+  }
+
   // 开始自动发送
   const startAutoSend = () => {
-    if (!sendData.trim()) {
-      alert('请先输入发送内容')
+    const enabledItems = autoSendItems.filter((item) => item.enabled && item.content.trim())
+    if (enabledItems.length === 0) {
+      alert('请至少添加一条有效的发送消息')
       return
     }
+
     setAutoSendActive(true)
-    autoSendTimerRef.current = setInterval(() => {
-      if (sendData.trim()) {
-        sessionService.send(Number(id), sendData)
-        addMessage('send', sendData)
+    setCurrentSendIndex(0)
+    addMessage('system', `自动发送已启动，共 ${enabledItems.length} 条消息`)
+
+    // 发送第一条消息
+    sendSingleMessage(enabledItems[0].content)
+
+    // 设置定时器发送后续消息
+    let itemIndex = 0
+    const scheduleNext = () => {
+      if (itemIndex >= enabledItems.length - 1) {
+        itemIndex = 0 // 循环
+      } else {
+        itemIndex++
       }
-    }, autoSendInterval)
-    addMessage('system', `自动发送已启动，周期: ${autoSendInterval}ms`)
+
+      const nextItem = enabledItems[itemIndex]
+      setCurrentSendIndex(itemIndex)
+
+      autoSendTimerRef.current = setTimeout(() => {
+        if (autoSendActive) {
+          sendSingleMessage(nextItem.content)
+          scheduleNext()
+        }
+      }, nextItem.interval)
+    }
+
+    // 第一条消息后等待其间隔时间
+    autoSendTimerRef.current = setTimeout(() => {
+      if (autoSendActive) {
+        itemIndex = 1
+        setCurrentSendIndex(1)
+        if (enabledItems[1]) {
+          sendSingleMessage(enabledItems[1].content)
+          scheduleNext()
+        }
+      }
+    }, enabledItems[0].interval)
   }
 
   // 停止自动发送
   const stopAutoSend = () => {
     setAutoSendActive(false)
+    setCurrentSendIndex(0)
     if (autoSendTimerRef.current) {
-      clearInterval(autoSendTimerRef.current)
+      clearTimeout(autoSendTimerRef.current)
       autoSendTimerRef.current = null
     }
     addMessage('system', '自动发送已停止')
@@ -395,6 +460,27 @@ const SessionDetailPage = () => {
       return formatJson(content)
     }
     return content
+  }
+
+  // 添加自动发送项
+  const addAutoSendItem = () => {
+    setAutoSendItems((prev) => [
+      ...prev,
+      { id: autoSendItemIdRef.current++, content: '', interval: 1000, enabled: true },
+    ])
+  }
+
+  // 删除自动发送项
+  const removeAutoSendItem = (itemId: number) => {
+    if (autoSendItems.length <= 1) return
+    setAutoSendItems((prev) => prev.filter((item) => item.id !== itemId))
+  }
+
+  // 更新自动发送项
+  const updateAutoSendItem = (itemId: number, field: keyof AutoSendItem, value: any) => {
+    setAutoSendItems((prev) =>
+      prev.map((item) => (item.id === itemId ? { ...item, [field]: value } : item))
+    )
   }
 
   if (loading) {
@@ -554,7 +640,7 @@ const SessionDetailPage = () => {
 
       {/* 右侧：通信记录和发送配置 */}
       <div className="flex-1 flex flex-col min-w-0 ml-1">
-        {/* 上部：通信记录 - 自动填充剩余高度 */}
+        {/* 上部：通信记录 */}
         <div className="flex-1 min-h-0">
           <Panel
             title="通信记录"
@@ -676,9 +762,9 @@ const SessionDetailPage = () => {
           <div className="mx-auto w-12 h-1 bg-gray-500 rounded opacity-0 group-hover:opacity-100 transition-opacity" />
         </div>
 
-        {/* 下部：发送配置 - 固定高度 */}
-        <div 
-          className="flex-shrink-0" 
+        {/* 下部：发送配置 */}
+        <div
+          className="flex-shrink-0"
           style={{ height: bottomPanelHeight, minHeight: 120, maxHeight: 400 }}
         >
           <Panel title="发送配置" className="h-full is-flex">
@@ -720,7 +806,7 @@ const SessionDetailPage = () => {
                 </div>
               </div>
 
-              {/* 发送内容 - 自适应高度 */}
+              {/* 发送内容 */}
               <div className="flex-1 min-w-0 h-full">
                 <textarea
                   value={getDisplayContent(sendData)}
@@ -755,7 +841,7 @@ const SessionDetailPage = () => {
                       setAutoSendDialogOpen(true)
                     }
                   }}
-                  disabled={!isConnected || !sendData.trim()}
+                  disabled={!isConnected}
                 >
                   <Timer className="w-4 h-4" />
                   {autoSendActive ? '停止' : '自动发送'}
@@ -769,9 +855,9 @@ const SessionDetailPage = () => {
       {/* 自动发送设置弹窗 */}
       {autoSendDialogOpen && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-panel-card border border-panel-border rounded-lg w-[360px]">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-panel-border">
-              <h3 className="text-base font-medium">自动发送设置</h3>
+          <div className="bg-panel-card border border-panel-border rounded-lg w-[600px] max-h-[80vh] flex flex-col">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-panel-border flex-shrink-0">
+              <h3 className="text-base font-medium">自动发送配置</h3>
               <button
                 onClick={() => setAutoSendDialogOpen(false)}
                 className="text-gray-400 hover:text-white transition-colors"
@@ -780,27 +866,91 @@ const SessionDetailPage = () => {
               </button>
             </div>
 
-            <div className="p-4 space-y-4">
-              <div>
-                <label className="block text-sm text-gray-400 mb-2">发送周期 (毫秒)</label>
-                <input
-                  type="number"
-                  value={autoSendInterval}
-                  onChange={(e) => setAutoSendInterval(Math.max(100, Number(e.target.value)))}
-                  className="input-field w-full"
-                  min={100}
-                  step={100}
-                  placeholder="1000"
-                />
-                <p className="text-xs text-gray-500 mt-1">最小值: 100ms</p>
-              </div>
+            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+              <p className="text-sm text-gray-400">
+                配置多条消息，按顺序循环发送。每条消息可设置独立的发送间隔。
+              </p>
 
-              <div className="p-3 bg-yellow-500/10 border border-yellow-500/30 rounded text-sm text-yellow-500">
-                <p>自动发送将按照设定的周期重复发送当前输入的内容。</p>
-              </div>
+              {autoSendItems.map((item, index) => (
+                <div
+                  key={item.id}
+                  className={`p-3 rounded border ${
+                    autoSendActive && currentSendIndex === index
+                      ? 'border-signal-blue bg-signal-blue/10'
+                      : 'border-panel-border bg-industrial-800/50'
+                  }`}
+                >
+                  <div className="flex items-start gap-3">
+                    {/* 序号 */}
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <GripVertical className="w-4 h-4 text-gray-500" />
+                      <span className="text-sm text-gray-400 w-6">{index + 1}.</span>
+                    </div>
+
+                    <div className="flex-1 space-y-2">
+                      {/* 消息内容 */}
+                      <textarea
+                        value={item.content}
+                        onChange={(e) => updateAutoSendItem(item.id, 'content', e.target.value)}
+                        placeholder="输入消息内容..."
+                        className="input-field h-16 resize-none font-mono text-sm w-full"
+                        disabled={autoSendActive}
+                      />
+
+                      {/* 间隔和启用 */}
+                      <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-gray-400">发送后等待</span>
+                          <input
+                            type="number"
+                            value={item.interval}
+                            onChange={(e) =>
+                              updateAutoSendItem(item.id, 'interval', Math.max(100, Number(e.target.value)))
+                            }
+                            className="input-field w-20 text-sm py-1"
+                            min={100}
+                            step={100}
+                            disabled={autoSendActive}
+                          />
+                          <span className="text-xs text-gray-400">ms</span>
+                        </div>
+
+                        <label className="flex items-center gap-1.5 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={item.enabled}
+                            onChange={(e) => updateAutoSendItem(item.id, 'enabled', e.target.checked)}
+                            className="accent-signal-blue"
+                            disabled={autoSendActive}
+                          />
+                          <span className="text-xs text-gray-300">启用</span>
+                        </label>
+
+                        <button
+                          onClick={() => removeAutoSendItem(item.id)}
+                          disabled={autoSendActive || autoSendItems.length <= 1}
+                          className="p-1 rounded text-gray-400 hover:text-signal-red hover:bg-signal-red/20 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+
+              {/* 添加按钮 */}
+              <button
+                onClick={addAutoSendItem}
+                disabled={autoSendActive}
+                className="w-full py-2 border border-dashed border-panel-border rounded text-gray-400 hover:text-signal-blue hover:border-signal-blue transition-colors disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                <Plus className="w-4 h-4" />
+                添加消息
+              </button>
             </div>
 
-            <div className="flex items-center justify-end gap-3 px-4 py-3 border-t border-panel-border">
+            <div className="flex items-center justify-end gap-3 px-4 py-3 border-t border-panel-border flex-shrink-0">
               <Button variant="secondary" onClick={() => setAutoSendDialogOpen(false)}>
                 取消
               </Button>
@@ -810,6 +960,7 @@ const SessionDetailPage = () => {
                   setAutoSendDialogOpen(false)
                   startAutoSend()
                 }}
+                disabled={autoSendItems.filter((i) => i.enabled && i.content.trim()).length === 0}
               >
                 开始发送
               </Button>
