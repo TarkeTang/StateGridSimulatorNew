@@ -898,10 +898,11 @@ const SessionDetailPage = () => {
                             type="number"
                             value={item.interval}
                             onChange={(e) =>
-                              updateAutoSendItem(item.id, 'interval', Math.max(100, Number(e.target.value)))
+                              updateAutoSendItem(item.id, 'interval', Math.min(86400000, Math.max(0, Number(e.target.value))))
                             }
                             className="input-field w-20 text-sm py-1"
-                            min={100}
+                            min={0}
+                            max={86400000}
                             step={100}
                             disabled={autoSendActive}
                           />
