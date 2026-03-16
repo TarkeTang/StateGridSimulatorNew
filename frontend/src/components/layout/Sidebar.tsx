@@ -13,6 +13,8 @@ import {
   Network,
   Usb,
   Radio,
+  Server,
+  FolderOpen,
 } from 'lucide-react'
 
 interface NavItem {
@@ -25,7 +27,14 @@ interface NavItem {
 const navItems: NavItem[] = [
   { path: '/', label: '首页', icon: LayoutDashboard },
   { path: '/dashboard', label: '控制面板', icon: Activity },
-  { path: '/data', label: '数据管理', icon: Database },
+  {
+    label: '数据管理',
+    icon: Database,
+    children: [
+      { path: '/data/tcp-session', label: 'TCP会话管理', icon: Server },
+      { path: '/data/message', label: '消息记录', icon: FolderOpen },
+    ],
+  },
   { path: '/analysis', label: '数据分析', icon: LineChart },
   { path: '/power', label: '电力监控', icon: Zap },
   {
@@ -42,7 +51,7 @@ const navItems: NavItem[] = [
 
 const Sidebar = () => {
   const location = useLocation()
-  const [expandedMenus, setExpandedMenus] = useState<string[]>(['协议调试'])
+  const [expandedMenus, setExpandedMenus] = useState<string[]>(['数据管理', '协议调试'])
 
   const toggleMenu = (label: string) => {
     setExpandedMenus((prev) =>
