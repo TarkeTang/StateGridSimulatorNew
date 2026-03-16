@@ -99,7 +99,11 @@ async def get_db_context() -> AsyncGenerator[AsyncSession, None]:
 
 async def init_db() -> None:
     """初始化数据库（创建所有表）"""
+    # 导入所有模型，确保 SQLAlchemy 能够创建对应的表
     from src.models.base import Base
+    from src.models.dict import DictType, DictData
+    from src.models.session import SessionConfig
+    from src.models.message import SessionMessage, MessageStatistics
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)

@@ -5,9 +5,9 @@ FastAPI 应用实例模块
 """
 
 from contextlib import asynccontextmanager
-from typing import AsyncGenerator
+from typing import AsyncGenerator, Optional
 
-from fastapi import FastAPI
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
 from src.api.v1.router import api_router
@@ -15,6 +15,7 @@ from src.core.config import settings
 from src.core.middleware import ExceptionHandlerMiddleware, RequestLoggingMiddleware
 from src.db.session import close_db, init_db
 from src.utils.logger import get_logger, setup_logger
+from src.utils.websocket_manager import websocket_endpoint
 
 log = get_logger("app")
 
@@ -78,6 +79,12 @@ def create_app() -> FastAPI:
 
     # 注册路由
     app.include_router(api_router, prefix="/api/v1")
+
+    # WebSocket 路由
+    @app.websocket("/api/v1/ws")
+    async def websocket_route(websocket: WebSocket):
+        """WebSocket端点"""
+        await websocket_endpoint(websocket)
 
     # 根路径
     @app.get("/", tags=["根路径"])

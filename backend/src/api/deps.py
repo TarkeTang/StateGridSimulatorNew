@@ -4,7 +4,7 @@ API 依赖注入模块
 提供通用的依赖注入函数
 """
 
-from typing import Optional
+from typing import AsyncGenerator, Optional
 
 from fastapi import Depends, Header, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -18,12 +18,11 @@ from src.db.session import AsyncSessionLocal
 security = HTTPBearer(auto_error=False)
 
 
-async def get_db_session() -> AsyncSession:
+async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
     """获取数据库会话"""
     async with AsyncSessionLocal() as session:
         try:
             yield session
-            await session.commit()
         except Exception:
             await session.rollback()
             raise
