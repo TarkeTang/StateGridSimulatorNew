@@ -32,7 +32,6 @@ interface MessageItem {
 // 格式化 XML
 const formatXml = (xml: string): string => {
   try {
-    // 简单的 XML 格式化
     let formatted = ''
     let indent = ''
     const nodes = xml.replace(/>\s*</g, '><').split(/(<[^>]+>)/g)
@@ -41,20 +40,16 @@ const formatXml = (xml: string): string => {
       if (!node.trim()) continue
 
       if (node.startsWith('</')) {
-        // 闭合标签，减少缩进
         indent = indent.slice(2)
         formatted += indent + node + '\n'
       } else if (node.startsWith('<') && !node.startsWith('<?') && !node.endsWith('/>')) {
-        // 开始标签
         formatted += indent + node + '\n'
         if (!node.includes('</')) {
           indent += '  '
         }
       } else if (node.startsWith('<?') || node.endsWith('/>')) {
-        // 声明或自闭合标签
         formatted += indent + node + '\n'
       } else {
-        // 文本内容
         formatted += indent + node.trim() + '\n'
       }
     }
@@ -78,6 +73,14 @@ const formatJson = (json: string): string => {
 const SessionDetailPage = () => {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+
+  // 面板尺寸状态
+  const [leftPanelWidth, setLeftPanelWidth] = useState(320)
+  const [bottomPanelHeight, setBottomPanelHeight] = useState(180)
+
+  // 拖动状态
+  const [isDraggingH, setIsDraggingH] = useState(false)
+  const [isDraggingV, setIsDraggingV] = useState(false)
 
   // 会话配置
   const [session, setSession] = useState<SessionConfig | null>(null)
@@ -112,6 +115,7 @@ const SessionDetailPage = () => {
   const messageIdRef = useRef(0)
   const autoSendTimerRef = useRef<NodeJS.Timeout | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
 
   // 加载字典数据
   const loadDictData = useCallback(async () => {
@@ -151,6 +155,64 @@ const SessionDetailPage = () => {
     loadDictData()
     loadSession()
   }, [loadDictData, loadSession])
+
+  // 水平拖动处理
+  useEffect(() => {
+    if (!isDraggingH) return
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const newWidth = Math.min(500, Math.max(250, e.clientX))
+      setLeftPanelWidth(newWidth)
+    }
+
+    const handleMouseUp = () => {
+      setIsDraggingH(false)
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+    }
+
+    document.body.style.cursor = 'ew-resize'
+    document.body.style.userSelect = 'none'
+    document.addEventListener('mousemove', handleMouseMove)
+    document.addEventListener('mouseup', handleMouseUp)
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove)
+      document.removeEventListener('mouseup', handleMouseUp)
+    }
+  }, [isDraggingH])
+
+  // 垂直拖动处理
+  useEffect(() => {
+    if (!isDraggingV || !containerRef.current) return
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const container = containerRef.current
+      if (!container) return
+      
+      const containerRect = container.getBoundingClientRect()
+      const rightPanelTop = containerRect.top
+      const mouseFromBottom = containerRect.bottom - e.clientY
+      const newHeight = Math.min(400, Math.max(120, mouseFromBottom))
+      setBottomPanelHeight(newHeight)
+    }
+
+    const handleMouseUp = () => {
+      setIsDraggingV(false)
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+    }
+
+    document.body.style.cursor = 'ns-resize'
+    document.body.style.userSelect = 'none'
+    document.addEventListener('mousemove', handleMouseMove)
+    document.addEventListener('mouseup', handleMouseUp)
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove)
+      document.removeEventListener('mouseup', handleMouseUp)
+    }
+  }, [isDraggingV])
 
   // 获取当前时间戳
   const getTimestamp = () => {
@@ -199,7 +261,6 @@ const SessionDetailPage = () => {
     setOperating(true)
     try {
       if (isConnected) {
-        // 断开连接
         const response = await sessionService.disconnect(Number(id))
         if (response.code === 200) {
           setIsConnected(false)
@@ -210,7 +271,6 @@ const SessionDetailPage = () => {
           alert(response.message || '断开失败')
         }
       } else {
-        // 建立连接
         setIsConnecting(true)
         const response = await sessionService.connect(Number(id))
         setIsConnecting(false)
@@ -223,7 +283,6 @@ const SessionDetailPage = () => {
           addMessage('system', `连接失败: ${response.message || '未知错误'}`)
         }
       }
-      // 刷新会话状态
       loadSession()
     } catch (err: any) {
       setIsConnecting(false)
@@ -339,11 +398,6 @@ const SessionDetailPage = () => {
     return content
   }
 
-  // 处理输入变化
-  const handleSendDataChange = (value: string) => {
-    setSendData(value)
-  }
-
   if (loading) {
     return (
       <div className="h-full flex items-center justify-center">
@@ -368,9 +422,12 @@ const SessionDetailPage = () => {
   const statusStyle = getStatusStyle(session.status)
 
   return (
-    <div className="h-full flex gap-4 animate-fadeIn">
+    <div className="h-full flex animate-fadeIn" ref={containerRef}>
       {/* 左侧：会话信息和连接状态 */}
-      <div className="w-80 flex-shrink-0 flex flex-col gap-4">
+      <div
+        className="flex-shrink-0 flex flex-col gap-4 relative"
+        style={{ width: leftPanelWidth }}
+      >
         {/* 返回按钮 */}
         <Button variant="secondary" onClick={() => navigate('/data/session')}>
           <ArrowLeft className="w-4 h-4" />
@@ -478,10 +535,23 @@ const SessionDetailPage = () => {
             </Button>
           </div>
         </Panel>
+
+        {/* 水平拖动手柄 */}
+        <div
+          className={`absolute top-0 right-0 w-1 h-full cursor-ew-resize z-10 group ${
+            isDraggingH ? 'bg-signal-blue' : 'hover:bg-signal-blue/50'
+          }`}
+          onMouseDown={(e) => {
+            e.preventDefault()
+            setIsDraggingH(true)
+          }}
+        >
+          <div className="absolute top-1/2 right-0 w-1 h-12 -translate-y-1/2 bg-gray-500 rounded opacity-0 group-hover:opacity-100 transition-opacity" />
+        </div>
       </div>
 
       {/* 右侧：通信记录和发送配置 */}
-      <div className="flex-1 flex flex-col min-w-0 gap-4">
+      <div className="flex-1 flex flex-col min-w-0 ml-1">
         {/* 上部：通信记录 */}
         <Panel
           title="通信记录"
@@ -538,7 +608,6 @@ const SessionDetailPage = () => {
                     }`}
                   >
                     <div className="flex items-start gap-2">
-                      {/* 图标 */}
                       {msg.type === 'send' ? (
                         <ArrowUpRight className="w-4 h-4 mt-0.5 flex-shrink-0 text-signal-blue" />
                       ) : msg.type === 'receive' ? (
@@ -548,7 +617,6 @@ const SessionDetailPage = () => {
                       )}
 
                       <div className="flex-1 min-w-0">
-                        {/* 时间戳和类型 */}
                         <div className="flex items-center gap-2 mb-1">
                           {showTimestamp && (
                             <span className="text-gray-500 text-xs">{msg.timestamp}</span>
@@ -572,12 +640,10 @@ const SessionDetailPage = () => {
                           </span>
                         </div>
 
-                        {/* 内容 */}
                         <div className="text-gray-200 break-all whitespace-pre-wrap">
                           {msg.content}
                         </div>
 
-                        {/* HEX显示 */}
                         {showHex && msg.hex && (
                           <div className="text-gray-500 text-xs mt-1 font-mono">
                             HEX: {msg.hex}
@@ -593,89 +659,104 @@ const SessionDetailPage = () => {
           </div>
         </Panel>
 
+        {/* 垂直拖动手柄 */}
+        <div
+          className={`h-1 cursor-ns-resize z-10 group my-1 ${
+            isDraggingV ? 'bg-signal-blue' : 'hover:bg-signal-blue/50'
+          }`}
+          onMouseDown={(e) => {
+            e.preventDefault()
+            setIsDraggingV(true)
+          }}
+        >
+          <div className="mx-auto w-12 h-1 bg-gray-500 rounded opacity-0 group-hover:opacity-100 transition-opacity" />
+        </div>
+
         {/* 下部：发送配置 */}
-        <Panel title="发送配置">
-          <div className="flex gap-4">
-            {/* 发送模式 */}
-            <div className="flex flex-col gap-2">
-              <span className="text-xs text-gray-400">格式</span>
-              <div className="flex items-center gap-2">
-                <label className="flex items-center gap-1.5 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="sendMode"
-                    checked={sendMode === 'text'}
-                    onChange={() => setSendMode('text')}
-                    className="accent-signal-blue"
-                  />
-                  <span className="text-sm text-gray-300">文本</span>
-                </label>
-                <label className="flex items-center gap-1.5 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="sendMode"
-                    checked={sendMode === 'xml'}
-                    onChange={() => setSendMode('xml')}
-                    className="accent-signal-blue"
-                  />
-                  <span className="text-sm text-gray-300">XML</span>
-                </label>
-                <label className="flex items-center gap-1.5 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="sendMode"
-                    checked={sendMode === 'json'}
-                    onChange={() => setSendMode('json')}
-                    className="accent-signal-blue"
-                  />
-                  <span className="text-sm text-gray-300">JSON</span>
-                </label>
+        <div style={{ height: bottomPanelHeight }} className="flex-shrink-0">
+          <Panel title="发送配置" className="h-full">
+            <div className="flex gap-4 h-full">
+              {/* 发送模式 */}
+              <div className="flex flex-col gap-2">
+                <span className="text-xs text-gray-400">格式</span>
+                <div className="flex items-center gap-2">
+                  <label className="flex items-center gap-1.5 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="sendMode"
+                      checked={sendMode === 'text'}
+                      onChange={() => setSendMode('text')}
+                      className="accent-signal-blue"
+                    />
+                    <span className="text-sm text-gray-300">文本</span>
+                  </label>
+                  <label className="flex items-center gap-1.5 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="sendMode"
+                      checked={sendMode === 'xml'}
+                      onChange={() => setSendMode('xml')}
+                      className="accent-signal-blue"
+                    />
+                    <span className="text-sm text-gray-300">XML</span>
+                  </label>
+                  <label className="flex items-center gap-1.5 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="sendMode"
+                      checked={sendMode === 'json'}
+                      onChange={() => setSendMode('json')}
+                      className="accent-signal-blue"
+                    />
+                    <span className="text-sm text-gray-300">JSON</span>
+                  </label>
+                </div>
+              </div>
+
+              {/* 发送内容 */}
+              <div className="flex-1">
+                <textarea
+                  value={getDisplayContent(sendData)}
+                  onChange={(e) => setSendData(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && e.ctrlKey) {
+                      handleSend()
+                    }
+                  }}
+                  placeholder="输入发送数据... (Ctrl+Enter发送)"
+                  className="input-field h-full resize-none font-mono text-sm w-full"
+                  disabled={!isConnected}
+                />
+              </div>
+
+              {/* 发送按钮 */}
+              <div className="flex flex-col gap-2">
+                <Button
+                  variant="primary"
+                  onClick={handleSend}
+                  disabled={!isConnected || !sendData.trim()}
+                >
+                  <Send className="w-4 h-4" />
+                  发送
+                </Button>
+                <Button
+                  variant={autoSendActive ? 'danger' : 'secondary'}
+                  onClick={() => {
+                    if (autoSendActive) {
+                      stopAutoSend()
+                    } else {
+                      setAutoSendDialogOpen(true)
+                    }
+                  }}
+                  disabled={!isConnected || !sendData.trim()}
+                >
+                  <Timer className="w-4 h-4" />
+                  {autoSendActive ? '停止' : '自动发送'}
+                </Button>
               </div>
             </div>
-
-            {/* 发送内容 */}
-            <div className="flex-1">
-              <textarea
-                value={getDisplayContent(sendData)}
-                onChange={(e) => handleSendDataChange(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && e.ctrlKey) {
-                    handleSend()
-                  }
-                }}
-                placeholder="输入发送数据... (Ctrl+Enter发送)"
-                className="input-field h-[66px] resize-none font-mono text-sm w-full"
-                disabled={!isConnected}
-              />
-            </div>
-
-            {/* 发送按钮 */}
-            <div className="flex flex-col gap-2">
-              <Button
-                variant="primary"
-                onClick={handleSend}
-                disabled={!isConnected || !sendData.trim()}
-              >
-                <Send className="w-4 h-4" />
-                发送
-              </Button>
-              <Button
-                variant={autoSendActive ? 'danger' : 'secondary'}
-                onClick={() => {
-                  if (autoSendActive) {
-                    stopAutoSend()
-                  } else {
-                    setAutoSendDialogOpen(true)
-                  }
-                }}
-                disabled={!isConnected || !sendData.trim()}
-              >
-                <Timer className="w-4 h-4" />
-                {autoSendActive ? '停止' : '自动发送'}
-              </Button>
-            </div>
-          </div>
-        </Panel>
+          </Panel>
+        </div>
       </div>
 
       {/* 自动发送设置弹窗 */}
