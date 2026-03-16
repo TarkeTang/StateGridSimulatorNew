@@ -287,22 +287,28 @@ const SessionDetailPage = () => {
   const statusStyle = getStatusStyle(session.status)
 
   return (
-    <div className="h-full flex flex-col gap-4 animate-fadeIn">
-      {/* 顶部：会话信息和状态 */}
-      <div className="flex gap-4">
+    <div className="h-full flex gap-4 animate-fadeIn">
+      {/* 左侧：会话信息和连接状态 */}
+      <div className="w-80 flex-shrink-0 flex flex-col gap-4">
+        {/* 返回按钮 */}
+        <Button variant="secondary" onClick={() => navigate('/data/tcp-session')}>
+          <ArrowLeft className="w-4 h-4" />
+          返回列表
+        </Button>
+
         {/* 会话信息（只读） */}
-        <Panel title="会话信息" className="flex-1">
-          <div className="flex items-center gap-6">
-            <div className="flex items-center gap-2">
-              <span className="text-gray-400 text-sm">名称:</span>
-              <span className="text-white font-medium">{session.name}</span>
+        <Panel title="会话信息">
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-gray-400 text-sm">会话名称</span>
+              <span className="text-white text-sm font-medium">{session.name}</span>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="text-gray-400 text-sm">协议:</span>
-              <span className="text-gray-300">{session.protocol_type}</span>
+            <div className="flex items-center justify-between">
+              <span className="text-gray-400 text-sm">协议类型</span>
+              <span className="text-gray-300 text-sm">{session.protocol_type}</span>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="text-gray-400 text-sm">模式:</span>
+            <div className="flex items-center justify-between">
+              <span className="text-gray-400 text-sm">连接模式</span>
               <span
                 className={`text-sm px-2 py-0.5 rounded ${
                   session.connection_mode === 'server'
@@ -313,273 +319,283 @@ const SessionDetailPage = () => {
                 {session.connection_mode === 'server' ? '服务端' : '客户端'}
               </span>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="text-gray-400 text-sm">地址:</span>
-              <span className="text-signal-blue font-mono">
+            <div className="flex items-center justify-between">
+              <span className="text-gray-400 text-sm">服务器地址</span>
+              <span className="text-signal-blue font-mono text-sm">
                 {session.host}:{session.port}
               </span>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="text-gray-400 text-sm">自动重连:</span>
-              <span className="text-gray-300">
+            <div className="flex items-center justify-between">
+              <span className="text-gray-400 text-sm">超时时间</span>
+              <span className="text-gray-300 text-sm">{session.timeout}ms</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-gray-400 text-sm">自动重连</span>
+              <span className="text-gray-300 text-sm">
                 {session.auto_reconnect ? `是 (${session.reconnect_interval}ms)` : '否'}
               </span>
             </div>
+            {session.description && (
+              <div className="pt-2 border-t border-panel-border">
+                <span className="text-gray-400 text-sm">描述</span>
+                <p className="text-gray-300 text-sm mt-1">{session.description}</p>
+              </div>
+            )}
           </div>
         </Panel>
 
         {/* 连接状态 */}
-        <Panel title="连接状态" className="w-80">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
+        <Panel title="连接状态">
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-gray-400 text-sm">状态</span>
               <div className="flex items-center gap-2">
-                <span
-                  className={`status-indicator ${isConnected ? 'online' : 'offline'}`}
-                />
+                <span className={`status-indicator ${isConnected ? 'online' : 'offline'}`} />
                 <span className={`${statusStyle.color} text-sm`}>{statusStyle.label}</span>
               </div>
-              <div className="flex items-center gap-2">
-                <span className="text-gray-400 text-sm">时长:</span>
-                <span className="text-white font-mono text-sm">{getConnectionDuration()}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-gray-400 text-sm">发送:</span>
-                <span className="text-signal-blue font-mono text-sm">{sendCount}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-gray-400 text-sm">接收:</span>
-                <span className="text-signal-green font-mono text-sm">{receiveCount}</span>
-              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => navigate('/data/tcp-session')}
-              >
-                <ArrowLeft className="w-3 h-3" />
-                返回
-              </Button>
-              <Button
-                variant={isConnected ? 'danger' : 'success'}
-                size="sm"
-                onClick={handleConnect}
-                disabled={isConnecting || operating}
-              >
-                {isConnecting ? (
-                  <>
-                    <Clock className="w-3 h-3 animate-spin" />
-                    连接中
-                  </>
-                ) : isConnected ? (
-                  <>
-                    <Square className="w-3 h-3" />
-                    断开
-                  </>
-                ) : (
-                  <>
-                    <Play className="w-3 h-3" />
-                    连接
-                  </>
-                )}
-              </Button>
+            <div className="flex items-center justify-between">
+              <span className="text-gray-400 text-sm">连接时长</span>
+              <span className="text-white font-mono text-sm">{getConnectionDuration()}</span>
             </div>
+            <div className="flex items-center justify-between">
+              <span className="text-gray-400 text-sm">发送计数</span>
+              <span className="text-signal-blue font-mono text-sm">{sendCount}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-gray-400 text-sm">接收计数</span>
+              <span className="text-signal-green font-mono text-sm">{receiveCount}</span>
+            </div>
+          </div>
+
+          {/* 连接按钮 */}
+          <div className="mt-4 pt-4 border-t border-panel-border">
+            <Button
+              variant={isConnected ? 'danger' : 'success'}
+              onClick={handleConnect}
+              disabled={isConnecting || operating}
+              className="w-full"
+            >
+              {isConnecting ? (
+                <>
+                  <Clock className="w-4 h-4 animate-spin" />
+                  连接中...
+                </>
+              ) : isConnected ? (
+                <>
+                  <Square className="w-4 h-4" />
+                  断开连接
+                </>
+              ) : (
+                <>
+                  <Play className="w-4 h-4" />
+                  建立连接
+                </>
+              )}
+            </Button>
           </div>
         </Panel>
       </div>
 
-      {/* 中间：通信记录 */}
-      <Panel
-        title={`通信记录`}
-        className="flex-1 flex flex-col min-h-0"
-        headerAction={
-          <div className="flex items-center gap-3">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={showTimestamp}
-                onChange={(e) => setShowTimestamp(e.target.checked)}
-                className="accent-signal-blue"
-              />
-              <span className="text-xs text-gray-400">时间戳</span>
-            </label>
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={showHex}
-                onChange={(e) => setShowHex(e.target.checked)}
-                className="accent-signal-blue"
-              />
-              <span className="text-xs text-gray-400">HEX</span>
-            </label>
-            <Button variant="secondary" size="sm" onClick={clearMessages}>
-              <Trash2 className="w-3 h-3" />
-              清空
-            </Button>
-            <Button variant="secondary" size="sm" onClick={exportLog}>
-              <Download className="w-3 h-3" />
-              导出
-            </Button>
-          </div>
-        }
-      >
-        <div className="flex-1 overflow-y-auto bg-black/40 rounded p-3 font-mono text-sm">
-          {messages.length === 0 ? (
-            <div className="h-full flex flex-col items-center justify-center text-gray-500">
-              <Activity className="w-12 h-12 mb-3 opacity-30" />
-              <p>暂无通信记录</p>
-              <p className="text-xs mt-1">建立连接后开始通信</p>
+      {/* 右侧：通信记录和发送配置 */}
+      <div className="flex-1 flex flex-col min-w-0 gap-4">
+        {/* 上部：通信记录 */}
+        <Panel
+          title="通信记录"
+          className="flex-1 flex flex-col min-h-0"
+          headerAction={
+            <div className="flex items-center gap-3">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={showTimestamp}
+                  onChange={(e) => setShowTimestamp(e.target.checked)}
+                  className="accent-signal-blue"
+                />
+                <span className="text-xs text-gray-400">时间戳</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={showHex}
+                  onChange={(e) => setShowHex(e.target.checked)}
+                  className="accent-signal-blue"
+                />
+                <span className="text-xs text-gray-400">HEX</span>
+              </label>
+              <Button variant="secondary" size="sm" onClick={clearMessages}>
+                <Trash2 className="w-3 h-3" />
+                清空
+              </Button>
+              <Button variant="secondary" size="sm" onClick={exportLog}>
+                <Download className="w-3 h-3" />
+                导出
+              </Button>
             </div>
-          ) : (
-            <div className="space-y-1">
-              {messages.map((msg) => (
-                <div
-                  key={msg.id}
-                  className={`py-1.5 px-2 rounded ${
-                    msg.type === 'send'
-                      ? 'bg-signal-blue/10 border-l-2 border-signal-blue'
-                      : msg.type === 'receive'
-                      ? 'bg-signal-green/10 border-l-2 border-signal-green'
-                      : 'bg-yellow-500/10 border-l-2 border-yellow-500'
-                  }`}
-                >
-                  <div className="flex items-start gap-2">
-                    {/* 图标 */}
-                    {msg.type === 'send' ? (
-                      <ArrowUpRight className="w-4 h-4 mt-0.5 flex-shrink-0 text-signal-blue" />
-                    ) : msg.type === 'receive' ? (
-                      <ArrowDownLeft className="w-4 h-4 mt-0.5 flex-shrink-0 text-signal-green" />
-                    ) : (
-                      <Wifi className="w-4 h-4 mt-0.5 flex-shrink-0 text-yellow-500" />
-                    )}
-
-                    <div className="flex-1 min-w-0">
-                      {/* 时间戳和类型 */}
-                      <div className="flex items-center gap-2 mb-1">
-                        {showTimestamp && (
-                          <span className="text-gray-500 text-xs">{msg.timestamp}</span>
-                        )}
-                        <span
-                          className={`text-xs ${
-                            msg.type === 'send'
-                              ? 'text-signal-blue'
-                              : msg.type === 'receive'
-                              ? 'text-signal-green'
-                              : 'text-yellow-500'
-                          }`}
-                        >
-                          [
-                          {msg.type === 'send'
-                            ? '发送'
-                            : msg.type === 'receive'
-                            ? '接收'
-                            : '系统'}
-                          ]
-                        </span>
-                      </div>
-
-                      {/* 内容 */}
-                      <div className="text-gray-200 break-all">{msg.content}</div>
-
-                      {/* HEX显示 */}
-                      {showHex && msg.hex && (
-                        <div className="text-gray-500 text-xs mt-1 font-mono">
-                          HEX: {msg.hex}
-                        </div>
+          }
+        >
+          <div className="flex-1 overflow-y-auto bg-black/40 rounded p-3 font-mono text-sm">
+            {messages.length === 0 ? (
+              <div className="h-full flex flex-col items-center justify-center text-gray-500">
+                <Activity className="w-12 h-12 mb-3 opacity-30" />
+                <p>暂无通信记录</p>
+                <p className="text-xs mt-1">建立连接后开始通信</p>
+              </div>
+            ) : (
+              <div className="space-y-1">
+                {messages.map((msg) => (
+                  <div
+                    key={msg.id}
+                    className={`py-1.5 px-2 rounded ${
+                      msg.type === 'send'
+                        ? 'bg-signal-blue/10 border-l-2 border-signal-blue'
+                        : msg.type === 'receive'
+                        ? 'bg-signal-green/10 border-l-2 border-signal-green'
+                        : 'bg-yellow-500/10 border-l-2 border-yellow-500'
+                    }`}
+                  >
+                    <div className="flex items-start gap-2">
+                      {/* 图标 */}
+                      {msg.type === 'send' ? (
+                        <ArrowUpRight className="w-4 h-4 mt-0.5 flex-shrink-0 text-signal-blue" />
+                      ) : msg.type === 'receive' ? (
+                        <ArrowDownLeft className="w-4 h-4 mt-0.5 flex-shrink-0 text-signal-green" />
+                      ) : (
+                        <Wifi className="w-4 h-4 mt-0.5 flex-shrink-0 text-yellow-500" />
                       )}
+
+                      <div className="flex-1 min-w-0">
+                        {/* 时间戳和类型 */}
+                        <div className="flex items-center gap-2 mb-1">
+                          {showTimestamp && (
+                            <span className="text-gray-500 text-xs">{msg.timestamp}</span>
+                          )}
+                          <span
+                            className={`text-xs ${
+                              msg.type === 'send'
+                                ? 'text-signal-blue'
+                                : msg.type === 'receive'
+                                ? 'text-signal-green'
+                                : 'text-yellow-500'
+                            }`}
+                          >
+                            [
+                            {msg.type === 'send'
+                              ? '发送'
+                              : msg.type === 'receive'
+                              ? '接收'
+                              : '系统'}
+                            ]
+                          </span>
+                        </div>
+
+                        {/* 内容 */}
+                        <div className="text-gray-200 break-all">{msg.content}</div>
+
+                        {/* HEX显示 */}
+                        {showHex && msg.hex && (
+                          <div className="text-gray-500 text-xs mt-1 font-mono">
+                            HEX: {msg.hex}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
-              <div ref={messagesEndRef} />
-            </div>
-          )}
-        </div>
-      </Panel>
-
-      {/* 底部：发送配置 */}
-      <Panel title="发送配置">
-        <div className="flex items-end gap-4">
-          {/* 发送模式 */}
-          <div className="flex items-center gap-4">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="radio"
-                name="sendMode"
-                checked={sendMode === 'text'}
-                onChange={() => setSendMode('text')}
-                className="accent-signal-blue"
-              />
-              <span className="text-sm text-gray-300">文本</span>
-            </label>
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="radio"
-                name="sendMode"
-                checked={sendMode === 'hex'}
-                onChange={() => setSendMode('hex')}
-                className="accent-signal-blue"
-              />
-              <span className="text-sm text-gray-300">HEX</span>
-            </label>
-          </div>
-
-          {/* 发送内容 */}
-          <div className="flex-1">
-            <textarea
-              value={sendData}
-              onChange={(e) => setSendData(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && e.ctrlKey) {
-                  handleSend()
-                }
-              }}
-              placeholder={sendMode === 'hex' ? '输入十六进制，如: 01 02 03 (Ctrl+Enter发送)' : '输入发送数据... (Ctrl+Enter发送)'}
-              className="input-field h-16 resize-none font-mono text-sm w-full"
-              disabled={!isConnected}
-            />
-          </div>
-
-          {/* 发送按钮 */}
-          <div className="flex items-center gap-2">
-            <Button
-              variant="primary"
-              onClick={handleSend}
-              disabled={!isConnected || !sendData.trim()}
-            >
-              <Send className="w-4 h-4" />
-              发送
-            </Button>
-          </div>
-
-          {/* 自动发送 */}
-          <div className="flex items-center gap-3 border-l border-panel-border pl-4">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={autoSend}
-                onChange={(e) => (e.target.checked ? startAutoSend() : stopAutoSend())}
-                disabled={!isConnected || !sendData.trim()}
-                className="accent-signal-blue"
-              />
-              <span className="text-sm text-gray-300">自动发送</span>
-            </label>
-            {autoSend && (
-              <div className="flex items-center gap-2">
-                <input
-                  type="number"
-                  value={autoSendInterval}
-                  onChange={(e) => setAutoSendInterval(Number(e.target.value))}
-                  className="input-field w-24 text-sm py-1"
-                  min={100}
-                  step={100}
-                />
-                <span className="text-sm text-gray-400">ms</span>
+                ))}
+                <div ref={messagesEndRef} />
               </div>
             )}
           </div>
-        </div>
-      </Panel>
+        </Panel>
+
+        {/* 下部：发送配置 */}
+        <Panel title="发送配置">
+          <div className="flex items-end gap-4">
+            {/* 发送模式 */}
+            <div className="flex items-center gap-4">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="sendMode"
+                  checked={sendMode === 'text'}
+                  onChange={() => setSendMode('text')}
+                  className="accent-signal-blue"
+                />
+                <span className="text-sm text-gray-300">文本</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="sendMode"
+                  checked={sendMode === 'hex'}
+                  onChange={() => setSendMode('hex')}
+                  className="accent-signal-blue"
+                />
+                <span className="text-sm text-gray-300">HEX</span>
+              </label>
+            </div>
+
+            {/* 发送内容 */}
+            <div className="flex-1">
+              <textarea
+                value={sendData}
+                onChange={(e) => setSendData(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && e.ctrlKey) {
+                    handleSend()
+                  }
+                }}
+                placeholder={
+                  sendMode === 'hex'
+                    ? '输入十六进制，如: 01 02 03 (Ctrl+Enter发送)'
+                    : '输入发送数据... (Ctrl+Enter发送)'
+                }
+                className="input-field h-16 resize-none font-mono text-sm w-full"
+                disabled={!isConnected}
+              />
+            </div>
+
+            {/* 发送按钮 */}
+            <div className="flex items-center gap-2">
+              <Button
+                variant="primary"
+                onClick={handleSend}
+                disabled={!isConnected || !sendData.trim()}
+              >
+                <Send className="w-4 h-4" />
+                发送
+              </Button>
+            </div>
+
+            {/* 自动发送 */}
+            <div className="flex items-center gap-3 border-l border-panel-border pl-4">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={autoSend}
+                  onChange={(e) => (e.target.checked ? startAutoSend() : stopAutoSend())}
+                  disabled={!isConnected || !sendData.trim()}
+                  className="accent-signal-blue"
+                />
+                <span className="text-sm text-gray-300">自动发送</span>
+              </label>
+              {autoSend && (
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    value={autoSendInterval}
+                    onChange={(e) => setAutoSendInterval(Number(e.target.value))}
+                    className="input-field w-24 text-sm py-1"
+                    min={100}
+                    step={100}
+                  />
+                  <span className="text-sm text-gray-400">ms</span>
+                </div>
+              )}
+            </div>
+          </div>
+        </Panel>
+      </div>
     </div>
   )
 }
