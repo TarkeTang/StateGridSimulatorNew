@@ -29,6 +29,7 @@ interface MessageItem {
   content: string
   timestamp: string
   hex?: string
+  isAutoSend?: boolean // 是否为自动发送
 }
 
 // 自动发送消息配置
@@ -249,13 +250,14 @@ const SessionDetailPage = () => {
   }
 
   // 添加消息
-  const addMessage = useCallback((type: 'send' | 'receive' | 'system', content: string) => {
+  const addMessage = useCallback((type: 'send' | 'receive' | 'system', content: string, isAutoSend = false) => {
     const newMessage: MessageItem = {
       id: ++messageIdRef.current,
       type,
       content,
       timestamp: getTimestamp(),
       hex: type !== 'system' ? stringToHex(content) : undefined,
+      isAutoSend,
     }
     setMessages((prev) => [...prev, newMessage])
 
@@ -326,13 +328,13 @@ const SessionDetailPage = () => {
   }
 
   // 发送单条消息
-  const sendSingleMessage = async (content: string) => {
+  const sendSingleMessage = async (content: string, isAutoSend = false) => {
     if (!content.trim() || !id) return false
 
     try {
       const response = await sessionService.send(Number(id), content)
       if (response.code === 200) {
-        addMessage('send', content)
+        addMessage('send', content, isAutoSend)
         return true
       }
       return false
@@ -363,7 +365,7 @@ const SessionDetailPage = () => {
         if (!autoSendRunningRef.current) return
 
         setCurrentSendIndex(index)
-        sendSingleMessage(item.content)
+        sendSingleMessage(item.content, true)
       }
 
       // 立即发送第一条
@@ -720,7 +722,9 @@ const SessionDetailPage = () => {
                             >
                               [
                               {msg.type === 'send'
-                                ? '发送'
+                                ? msg.isAutoSend
+                                  ? '自动发送'
+                                  : '发送'
                                 : msg.type === 'receive'
                                 ? '接收'
                                 : '系统'}
