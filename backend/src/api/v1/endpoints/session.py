@@ -243,11 +243,17 @@ async def disconnect_session(
 )
 async def send_message(
     config_id: int,
-    data: str,
+    body: dict,
     db: AsyncSession = Depends(get_db_session),
 ):
     """发送消息"""
     try:
+        data = body.get("data", "")
+        if not data:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="发送内容不能为空",
+            )
         service = SessionConfigService(db)
         success = await service.send_message(config_id, data)
         if not success:
