@@ -387,6 +387,9 @@ const SessionDetailPage = () => {
 
     // 每条消息独立按自己的间隔发送
     enabledConfigs.forEach((config, index) => {
+      // 确保 interval_ms 有效，默认 1000ms
+      const interval = config.interval_ms && config.interval_ms >= 100 ? config.interval_ms : 1000
+
       const sendMessage = () => {
         if (!autoSendRunningRef.current) return
 
@@ -402,7 +405,7 @@ const SessionDetailPage = () => {
         if (autoSendRunningRef.current) {
           sendMessage()
         }
-      }, config.interval_ms)
+      }, interval)
 
       // 保存定时器引用
       if (!autoSendTimerRef.current) {
