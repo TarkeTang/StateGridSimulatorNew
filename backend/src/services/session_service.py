@@ -174,12 +174,10 @@ class SessionConfigService:
 
     async def send_message(self, config_id: int, data: str) -> bool:
         """发送消息"""
-        config = await self.repository.get_by_id(config_id)
-        if not config:
-            raise ValueError("会话配置不存在")
-
-        if config.status != "connected":
-            raise ValueError("会话未连接")
+        # 检查 TCP 连接是否存在且已连接
+        conn = tcp_manager.get_connection(config_id)
+        if not conn or conn.status != "connected":
+            raise ValueError("会话未连接，请先建立连接")
 
         return await tcp_manager.send(config_id, data)
 
