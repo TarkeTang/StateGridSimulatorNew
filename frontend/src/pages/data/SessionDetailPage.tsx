@@ -276,27 +276,65 @@ const SessionDetailPage = () => {
       .join(' ')
   }
 
-  // 添加消息到后端
-  const addMessageToBackend = async (
+  // 添加消息到后端并更新本地状态
+  const addMessage = async (
     direction: 'send' | 'receive' | 'system',
     content: string,
     isAutoSend = false
   ) => {
     if (!id || !session) return
 
+    const now = new Date()
+    const timestamp = now.toISOString()
+
+    // 创建本地消息对象
+    const newMessage: SessionMessage = {
+      id: Date.now(), // 临时ID
+      session_id: Number(id),
+      session_name: session.name,
+      direction,
+      content,
+      content_hex: direction !== 'system' ? stringToHex(content) : null,
+      content_length: content.length,
+      message_type: 'data',
+      protocol_type: session.protocol_type,
+      source_address: null,
+      source_port: null,
+      target_address: null,
+      target_port: null,
+      status: 'processed',
+      error_message: null,
+      parsed_data: null,
+      extra_data: isAutoSend ? JSON.stringify({ is_auto_send: true }) : null,
+      timestamp,
+      created_at: timestamp,
+    }
+
+    // 立即更新本地状态
+    setMessages((prev) => [...prev, newMessage])
+
+    // 更新统计
+    if (direction === 'send') {
+      setSendCount((prev) => prev + 1)
+    } else if (direction === 'receive') {
+      setReceiveCount((prev) => prev + 1)
+    }
+
+    // 滚动到底部
+    setTimeout(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    }, 10)
+
+    // 异步保存到后端
     try {
-      const extraData = isAutoSend ? JSON.stringify({ is_auto_send: true }) : null
       await messageService.create({
         session_id: Number(id),
         session_name: session.name,
         direction,
         content,
         protocol_type: session.protocol_type,
-        extra_data: extraData,
+        extra_data: isAutoSend ? JSON.stringify({ is_auto_send: true }) : null,
       })
-
-      // 重新加载消息
-      loadMessages()
     } catch (err) {
       console.error('保存消息失败:', err)
     }
@@ -314,7 +352,7 @@ const SessionDetailPage = () => {
           setIsConnected(false)
           setConnectTime(null)
           stopAutoSend()
-          await addMessageToBackend('system', '连接已断开')
+          await addMessage('system', '连接已断开')
         } else {
           alert(response.message || '断开失败')
         }
@@ -326,15 +364,15 @@ const SessionDetailPage = () => {
         if (response.code === 200) {
           setIsConnected(true)
           setConnectTime(new Date().toLocaleTimeString('zh-CN', { hour12: false }))
-          await addMessageToBackend('system', `已连接到 ${session?.host}:${session?.port}`)
+          await addMessage('system', `已连接到 ${session?.host}:${session?.port}`)
         } else {
-          await addMessageToBackend('system', `连接失败: ${response.message || '未知错误'}`)
+          await addMessage('system', `连接失败: ${response.message || '未知错误'}`)
         }
       }
       loadSession()
     } catch (err: any) {
       setIsConnecting(false)
-      await addMessageToBackend('system', `操作失败: ${err.message || '网络错误'}`)
+      await addMessage('system', `操作失败: ${err.message || '网络错误'}`)
     } finally {
       setOperating(false)
     }
@@ -347,7 +385,7 @@ const SessionDetailPage = () => {
     try {
       const response = await sessionService.send(Number(id), sendData)
       if (response.code === 200) {
-        await addMessageToBackend('send', sendData)
+        await addMessage('send', sendData)
         setSendData('')
       } else {
         alert(response.message || '发送失败')
@@ -364,7 +402,7 @@ const SessionDetailPage = () => {
     try {
       const response = await sessionService.send(Number(id), content)
       if (response.code === 200) {
-        await addMessageToBackend('send', content, isAutoSend)
+        await addMessage('send', content, isAutoSend)
         return true
       }
       return false
@@ -391,7 +429,7 @@ const SessionDetailPage = () => {
 
     setAutoSendActive(true)
     autoSendRunningRef.current = true
-    addMessageToBackend('system', `自动发送已启动，共 ${enabledConfigs.length} 条消息`)
+    addMessage('system', `自动发送已启动，共 ${enabledConfigs.length} 条消息`)
 
     // 每条消息独立按自己的间隔发送
     enabledConfigs.forEach((config, index) => {
@@ -435,7 +473,7 @@ const SessionDetailPage = () => {
     }
     setAutoSendActive(false)
     setCurrentSendIndex(0)
-    addMessageToBackend('system', '自动发送已停止')
+    addMessage('system', '自动发送已停止')
   }
 
   // 清空消息
