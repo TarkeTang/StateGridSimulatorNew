@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Panel, Button, Input } from '@/components/ui'
 import {
   Plus,
@@ -14,37 +14,11 @@ import {
   Play,
   Square,
   Eye,
+  AlertCircle,
 } from 'lucide-react'
+import { sessionService, type SessionConfig, type SessionConfigCreate, type SessionConfigUpdate } from '@/services/session'
 
-interface TcpSession {
-  id: number
-  name: string
-  host: string
-  port: number
-  protocol_type: string
-  connection_mode: 'client' | 'server'
-  status: 'disconnected' | 'connected' | 'connecting' | 'error'
-  description: string
-  auto_reconnect: boolean
-  reconnect_interval: number
-  timeout: number
-  created_at: string
-  updated_at: string
-}
-
-interface SessionFormData {
-  name: string
-  host: string
-  port: number
-  protocol_type: string
-  connection_mode: 'client' | 'server'
-  description: string
-  auto_reconnect: boolean
-  reconnect_interval: number
-  timeout: number
-}
-
-const initialFormData: SessionFormData = {
+const initialFormData: SessionConfigCreate = {
   name: '',
   host: '127.0.0.1',
   port: 8080,
@@ -54,74 +28,57 @@ const initialFormData: SessionFormData = {
   auto_reconnect: false,
   reconnect_interval: 5000,
   timeout: 30000,
+  is_enabled: true,
 }
 
 const TcpSessionPage = () => {
-  const [sessions, setSessions] = useState<TcpSession[]>([])
+  // 数据状态
+  const [sessions, setSessions] = useState<SessionConfig[]>([])
+  const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  // 搜索和分页
   const [searchTerm, setSearchTerm] = useState('')
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize] = useState(20)
+
+  // 弹窗状态
   const [showModal, setShowModal] = useState(false)
-  const [editingSession, setEditingSession] = useState<TcpSession | null>(null)
-  const [formData, setFormData] = useState<SessionFormData>(initialFormData)
+  const [editingSession, setEditingSession] = useState<SessionConfig | null>(null)
+  const [formData, setFormData] = useState<SessionConfigCreate>(initialFormData)
+  const [saving, setSaving] = useState(false)
 
-  // 模拟数据
+  // 操作状态
+  const [operatingId, setOperatingId] = useState<number | null>(null)
+
+  // 加载数据
+  const loadSessions = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const response = await sessionService.getList({
+        page: currentPage,
+        page_size: pageSize,
+        keyword: searchTerm || undefined,
+        protocol_type: 'TCP', // 当前页面只显示TCP会话
+      })
+      if (response.code === 200 && response.data) {
+        setSessions(response.data.items)
+        setTotal(response.data.total)
+      } else {
+        setError(response.message || '获取数据失败')
+      }
+    } catch (err: any) {
+      setError(err.message || '网络错误')
+    } finally {
+      setLoading(false)
+    }
+  }, [currentPage, pageSize, searchTerm])
+
   useEffect(() => {
-    const mockSessions: TcpSession[] = [
-      {
-        id: 1,
-        name: 'PLC通信服务',
-        host: '192.168.1.100',
-        port: 502,
-        protocol_type: 'TCP',
-        connection_mode: 'client',
-        status: 'connected',
-        description: 'PLC设备TCP连接',
-        auto_reconnect: true,
-        reconnect_interval: 5000,
-        timeout: 30000,
-        created_at: '2026-03-16 10:00:00',
-        updated_at: '2026-03-16 10:00:00',
-      },
-      {
-        id: 2,
-        name: '数据采集服务',
-        host: '192.168.1.101',
-        port: 8888,
-        protocol_type: 'TCP',
-        connection_mode: 'client',
-        status: 'disconnected',
-        description: '数据采集终端连接',
-        auto_reconnect: true,
-        reconnect_interval: 3000,
-        timeout: 15000,
-        created_at: '2026-03-16 11:00:00',
-        updated_at: '2026-03-16 11:00:00',
-      },
-      {
-        id: 3,
-        name: '监控服务',
-        host: '0.0.0.0',
-        port: 9000,
-        protocol_type: 'TCP',
-        connection_mode: 'server',
-        status: 'connected',
-        description: '监控服务监听端口',
-        auto_reconnect: false,
-        reconnect_interval: 5000,
-        timeout: 60000,
-        created_at: '2026-03-16 12:00:00',
-        updated_at: '2026-03-16 12:00:00',
-      },
-    ]
-    setSessions(mockSessions)
-  }, [])
-
-  // 过滤会话
-  const filteredSessions = sessions.filter(
-    (session) =>
-      session.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      session.host.includes(searchTerm)
-  )
+    loadSessions()
+  }, [loadSessions])
 
   // 打开新增弹窗
   const handleAdd = () => {
@@ -131,70 +88,118 @@ const TcpSessionPage = () => {
   }
 
   // 打开编辑弹窗
-  const handleEdit = (session: TcpSession) => {
+  const handleEdit = (session: SessionConfig) => {
     setEditingSession(session)
     setFormData({
       name: session.name,
-      host: session.host,
-      port: session.port,
+      host: session.host || '127.0.0.1',
+      port: session.port || 8080,
       protocol_type: session.protocol_type,
       connection_mode: session.connection_mode,
-      description: session.description,
+      description: session.description || '',
       auto_reconnect: session.auto_reconnect,
       reconnect_interval: session.reconnect_interval,
       timeout: session.timeout,
+      is_enabled: session.is_enabled,
     })
     setShowModal(true)
   }
 
   // 保存会话
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!formData.name.trim()) {
       alert('请输入会话名称')
       return
     }
 
-    if (editingSession) {
-      // 更新
-      setSessions((prev) =>
-        prev.map((s) =>
-          s.id === editingSession.id
-            ? { ...s, ...formData, updated_at: new Date().toLocaleString('zh-CN') }
-            : s
-        )
-      )
-    } else {
-      // 新增
-      const newSession: TcpSession = {
-        id: Date.now(),
-        ...formData,
-        status: 'disconnected',
-        created_at: new Date().toLocaleString('zh-CN'),
-        updated_at: new Date().toLocaleString('zh-CN'),
+    setSaving(true)
+    try {
+      if (editingSession) {
+        // 更新
+        const updateData: SessionConfigUpdate = {}
+        Object.keys(formData).forEach((key) => {
+          const k = key as keyof SessionConfigCreate
+          if (formData[k] !== undefined) {
+            updateData[k] = formData[k]
+          }
+        })
+        const response = await sessionService.update(editingSession.id, updateData)
+        if (response.code === 200) {
+          setShowModal(false)
+          loadSessions()
+        } else {
+          alert(response.message || '更新失败')
+        }
+      } else {
+        // 新增
+        const response = await sessionService.create(formData)
+        if (response.code === 201 || response.code === 200) {
+          setShowModal(false)
+          loadSessions()
+        } else {
+          alert(response.message || '创建失败')
+        }
       }
-      setSessions((prev) => [...prev, newSession])
+    } catch (err: any) {
+      alert(err.message || '操作失败')
+    } finally {
+      setSaving(false)
     }
-    setShowModal(false)
   }
 
   // 删除会话
-  const handleDelete = (id: number) => {
-    if (confirm('确定要删除该会话配置吗？')) {
-      setSessions((prev) => prev.filter((s) => s.id !== id))
+  const handleDelete = async (session: SessionConfig) => {
+    if (!confirm(`确定要删除会话 "${session.name}" 吗？`)) {
+      return
+    }
+
+    setOperatingId(session.id)
+    try {
+      const response = await sessionService.delete(session.id)
+      if (response.code === 200) {
+        loadSessions()
+      } else {
+        alert(response.message || '删除失败')
+      }
+    } catch (err: any) {
+      alert(err.message || '删除失败')
+    } finally {
+      setOperatingId(null)
     }
   }
 
-  // 连接/断开会话
-  const handleToggleConnection = (session: TcpSession) => {
-    setSessions((prev) =>
-      prev.map((s) => {
-        if (s.id === session.id) {
-          const newStatus = s.status === 'connected' ? 'disconnected' : 'connected'
-          return { ...s, status: newStatus, updated_at: new Date().toLocaleString('zh-CN') }
-        }
-        return s
-      })
-    )
+  // 连接会话
+  const handleConnect = async (session: SessionConfig) => {
+    setOperatingId(session.id)
+    try {
+      const response = await sessionService.connect(session.id)
+      if (response.code === 200) {
+        loadSessions()
+      } else {
+        alert(response.message || '连接失败')
+      }
+    } catch (err: any) {
+      alert(err.message || '连接失败')
+    } finally {
+      setOperatingId(null)
+    }
+  }
+
+  // 断开会话
+  const handleDisconnect = async (session: SessionConfig) => {
+    setOperatingId(session.id)
+    try {
+      const response = await sessionService.disconnect(session.id)
+      if (response.code === 200) {
+        loadSessions()
+      } else {
+        alert(response.message || '断开失败')
+      }
+    } catch (err: any) {
+      alert(err.message || '断开失败')
+    } finally {
+      setOperatingId(null)
+    }
   }
 
   // 获取状态样式
@@ -222,12 +227,15 @@ const TcpSessionPage = () => {
               <input
                 type="text"
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                onChange={(e) => {
+                  setSearchTerm(e.target.value)
+                  setCurrentPage(1)
+                }}
                 placeholder="搜索会话名称或地址..."
                 className="input-field pl-10 w-64"
               />
             </div>
-            <Button variant="secondary" onClick={() => setLoading(!loading)}>
+            <Button variant="secondary" onClick={loadSessions} disabled={loading}>
               <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
               刷新
             </Button>
@@ -239,8 +247,19 @@ const TcpSessionPage = () => {
         </div>
       </Panel>
 
+      {/* 错误提示 */}
+      {error && (
+        <div className="flex items-center gap-2 p-4 bg-signal-red/10 border border-signal-red/30 rounded-lg text-signal-red">
+          <AlertCircle className="w-5 h-5" />
+          <span>{error}</span>
+          <button onClick={loadSessions} className="ml-auto underline hover:no-underline">
+            重试
+          </button>
+        </div>
+      )}
+
       {/* 会话列表 */}
-      <Panel title={`TCP会话列表 (${filteredSessions.length})`}>
+      <Panel title={`TCP会话列表 (共 ${total} 条)`}>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -257,15 +276,23 @@ const TcpSessionPage = () => {
               </tr>
             </thead>
             <tbody>
-              {filteredSessions.length === 0 ? (
+              {loading ? (
+                <tr>
+                  <td colSpan={9} className="text-center py-8 text-gray-400">
+                    加载中...
+                  </td>
+                </tr>
+              ) : sessions.length === 0 ? (
                 <tr>
                   <td colSpan={9} className="text-center py-8 text-gray-500">
-                    暂无会话配置
+                    暂无会话配置，点击"新增会话"添加
                   </td>
                 </tr>
               ) : (
-                filteredSessions.map((session) => {
+                sessions.map((session) => {
                   const statusStyle = getStatusStyle(session.status)
+                  const isOperating = operatingId === session.id
+                  
                   return (
                     <tr
                       key={session.id}
@@ -314,24 +341,35 @@ const TcpSessionPage = () => {
                       <td className="py-3 px-4 text-gray-400 max-w-xs truncate">
                         {session.description || '-'}
                       </td>
-                      <td className="py-3 px-4 text-gray-400 text-xs">{session.updated_at}</td>
+                      <td className="py-3 px-4 text-gray-400 text-xs">
+                        {session.updated_at ? new Date(session.updated_at).toLocaleString('zh-CN') : '-'}
+                      </td>
                       <td className="py-3 px-4">
                         <div className="flex items-center justify-center gap-1">
+                          {/* 连接/断开按钮 */}
                           <button
-                            onClick={() => handleToggleConnection(session)}
-                            className={`p-1.5 rounded transition-colors ${
+                            onClick={() => 
+                              session.status === 'connected' 
+                                ? handleDisconnect(session) 
+                                : handleConnect(session)
+                            }
+                            disabled={isOperating || session.status === 'connecting'}
+                            className={`p-1.5 rounded transition-colors disabled:opacity-50 ${
                               session.status === 'connected'
                                 ? 'text-signal-red hover:bg-signal-red/20'
                                 : 'text-signal-green hover:bg-signal-green/20'
                             }`}
                             title={session.status === 'connected' ? '断开' : '连接'}
                           >
-                            {session.status === 'connected' ? (
+                            {isOperating ? (
+                              <RefreshCw className="w-4 h-4 animate-spin" />
+                            ) : session.status === 'connected' ? (
                               <Square className="w-4 h-4" />
                             ) : (
                               <Play className="w-4 h-4" />
                             )}
                           </button>
+                          {/* 编辑按钮 */}
                           <button
                             onClick={() => handleEdit(session)}
                             className="p-1.5 rounded text-gray-400 hover:text-signal-blue hover:bg-signal-blue/20 transition-colors"
@@ -339,13 +377,16 @@ const TcpSessionPage = () => {
                           >
                             <Edit3 className="w-4 h-4" />
                           </button>
+                          {/* 删除按钮 */}
                           <button
-                            onClick={() => handleDelete(session.id)}
-                            className="p-1.5 rounded text-gray-400 hover:text-signal-red hover:bg-signal-red/20 transition-colors"
-                            title="删除"
+                            onClick={() => handleDelete(session)}
+                            disabled={session.status === 'connected'}
+                            className="p-1.5 rounded text-gray-400 hover:text-signal-red hover:bg-signal-red/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            title={session.status === 'connected' ? '请先断开连接' : '删除'}
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
+                          {/* 查看消息按钮 */}
                           <button
                             className="p-1.5 rounded text-gray-400 hover:text-signal-yellow hover:bg-signal-yellow/20 transition-colors"
                             title="查看消息"
@@ -361,6 +402,33 @@ const TcpSessionPage = () => {
             </tbody>
           </table>
         </div>
+
+        {/* 分页 */}
+        {total > pageSize && (
+          <div className="flex items-center justify-between mt-4 pt-4 border-t border-panel-border">
+            <div className="text-sm text-gray-400">
+              共 {total} 条记录，第 {currentPage} 页
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={currentPage === 1}
+                onClick={() => setCurrentPage((p) => p - 1)}
+              >
+                上一页
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={currentPage * pageSize >= total}
+                onClick={() => setCurrentPage((p) => p + 1)}
+              >
+                下一页
+              </Button>
+            </div>
+          </div>
+        )}
       </Panel>
 
       {/* 新增/编辑弹窗 */}
@@ -408,14 +476,14 @@ const TcpSessionPage = () => {
               <div className="grid grid-cols-2 gap-4">
                 <Input
                   label="服务器地址"
-                  value={formData.host}
+                  value={formData.host || ''}
                   onChange={(e) => setFormData({ ...formData, host: e.target.value })}
                   placeholder="127.0.0.1"
                 />
                 <Input
                   label="端口"
                   type="number"
-                  value={formData.port}
+                  value={formData.port || ''}
                   onChange={(e) => setFormData({ ...formData, port: parseInt(e.target.value) || 0 })}
                   placeholder="8080"
                 />
@@ -437,7 +505,7 @@ const TcpSessionPage = () => {
                 <Input
                   label="超时时间(ms)"
                   type="number"
-                  value={formData.timeout}
+                  value={formData.timeout || ''}
                   onChange={(e) =>
                     setFormData({ ...formData, timeout: parseInt(e.target.value) || 0 })
                   }
@@ -463,7 +531,7 @@ const TcpSessionPage = () => {
                   <Input
                     label="重连间隔(ms)"
                     type="number"
-                    value={formData.reconnect_interval}
+                    value={formData.reconnect_interval || ''}
                     onChange={(e) =>
                       setFormData({
                         ...formData,
@@ -478,7 +546,7 @@ const TcpSessionPage = () => {
               <div>
                 <label className="block text-sm text-gray-400 mb-1.5">描述</label>
                 <textarea
-                  value={formData.description}
+                  value={formData.description || ''}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                   placeholder="请输入会话描述..."
                   className="input-field h-20 resize-none"
@@ -487,12 +555,21 @@ const TcpSessionPage = () => {
             </div>
 
             <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-panel-border">
-              <Button variant="secondary" onClick={() => setShowModal(false)}>
+              <Button variant="secondary" onClick={() => setShowModal(false)} disabled={saving}>
                 取消
               </Button>
-              <Button variant="success" onClick={handleSave}>
-                <Save className="w-4 h-4" />
-                保存
+              <Button variant="success" onClick={handleSave} disabled={saving}>
+                {saving ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    保存中...
+                  </>
+                ) : (
+                  <>
+                    <Save className="w-4 h-4" />
+                    保存
+                  </>
+                )}
               </Button>
             </div>
           </div>
