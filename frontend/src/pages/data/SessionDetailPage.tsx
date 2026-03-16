@@ -21,24 +21,9 @@ import {
   GripVertical,
 } from 'lucide-react'
 import { sessionService, type SessionConfig } from '@/services/session'
+import { messageService, type SessionMessage } from '@/services/message'
+import { autoSendService, type AutoSendConfig } from '@/services/autoSend'
 import { getDictName, type DictData } from '@/services/dict'
-
-interface MessageItem {
-  id: number
-  type: 'send' | 'receive' | 'system'
-  content: string
-  timestamp: string
-  hex?: string
-  isAutoSend?: boolean // 是否为自动发送
-}
-
-// 自动发送消息配置
-interface AutoSendItem {
-  id: number
-  content: string
-  interval: number | '' // 毫秒，允许空值便于输入
-  enabled: boolean
-}
 
 // 格式化 XML
 const formatXml = (xml: string): string => {
@@ -110,16 +95,9 @@ const SessionDetailPage = () => {
   const [sendData, setSendData] = useState('')
   const [sendMode, setSendMode] = useState<'text' | 'xml' | 'json'>('text')
 
-  // 自动发送配置
-  const [autoSendDialogOpen, setAutoSendDialogOpen] = useState(false)
-  const [autoSendItems, setAutoSendItems] = useState<AutoSendItem[]>([
-    { id: 1, content: '', interval: 1000, enabled: true },
-  ])
-  const [autoSendActive, setAutoSendActive] = useState(false)
-  const [currentSendIndex, setCurrentSendIndex] = useState(0)
-
-  // 消息记录
-  const [messages, setMessages] = useState<MessageItem[]>([])
+  // 消息记录（从后端加载）
+  const [messages, setMessages] = useState<SessionMessage[]>([])
+  const [messagesLoading, setMessagesLoading] = useState(false)
   const [showTimestamp, setShowTimestamp] = useState(true)
   const [showHex, setShowHex] = useState(false)
 
@@ -128,12 +106,16 @@ const SessionDetailPage = () => {
   const [receiveCount, setReceiveCount] = useState(0)
   const [connectTime, setConnectTime] = useState<string | null>(null)
 
-  const messageIdRef = useRef(0)
+  // 自动发送配置（从后端加载）
+  const [autoSendDialogOpen, setAutoSendDialogOpen] = useState(false)
+  const [autoSendConfigs, setAutoSendConfigs] = useState<AutoSendConfig[]>([])
+  const [autoSendActive, setAutoSendActive] = useState(false)
+  const [currentSendIndex, setCurrentSendIndex] = useState(0)
+
   const autoSendTimerRef = useRef<NodeJS.Timeout | NodeJS.Timeout[] | null>(null)
   const autoSendRunningRef = useRef(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
-  const autoSendItemIdRef = useRef(2)
 
   // 加载字典数据
   const loadDictData = useCallback(async () => {
@@ -169,10 +151,55 @@ const SessionDetailPage = () => {
     }
   }, [id])
 
+  // 加载消息记录
+  const loadMessages = useCallback(async () => {
+    if (!id) return
+
+    setMessagesLoading(true)
+    try {
+      const response = await messageService.getList(Number(id), { page_size: 100 })
+      if (response.code === 200 && response.data) {
+        // 按时间正序排列
+        const items = response.data.items.reverse()
+        setMessages(items)
+
+        // 计算统计
+        let send = 0
+        let receive = 0
+        items.forEach((msg) => {
+          if (msg.direction === 'send') send++
+          else if (msg.direction === 'receive') receive++
+        })
+        setSendCount(send)
+        setReceiveCount(receive)
+      }
+    } catch (err) {
+      console.error('加载消息记录失败:', err)
+    } finally {
+      setMessagesLoading(false)
+    }
+  }, [id])
+
+  // 加载自动发送配置
+  const loadAutoSendConfigs = useCallback(async () => {
+    if (!id) return
+
+    try {
+      const response = await autoSendService.getListBySession(Number(id))
+      if (response.code === 200 && response.data) {
+        setAutoSendConfigs(response.data.items)
+      }
+    } catch (err) {
+      console.error('加载自动发送配置失败:', err)
+    }
+  }, [id])
+
   useEffect(() => {
     loadDictData()
     loadSession()
-  }, [loadDictData, loadSession])
+    loadMessages()
+    loadAutoSendConfigs()
+  }, [loadDictData, loadSession, loadMessages, loadAutoSendConfigs])
 
   // 水平拖动处理
   useEffect(() => {
@@ -249,28 +276,31 @@ const SessionDetailPage = () => {
       .join(' ')
   }
 
-  // 添加消息
-  const addMessage = useCallback((type: 'send' | 'receive' | 'system', content: string, isAutoSend = false) => {
-    const newMessage: MessageItem = {
-      id: ++messageIdRef.current,
-      type,
-      content,
-      timestamp: getTimestamp(),
-      hex: type !== 'system' ? stringToHex(content) : undefined,
-      isAutoSend,
-    }
-    setMessages((prev) => [...prev, newMessage])
+  // 添加消息到后端
+  const addMessageToBackend = async (
+    direction: 'send' | 'receive' | 'system',
+    content: string,
+    isAutoSend = false
+  ) => {
+    if (!id || !session) return
 
-    if (type === 'send') {
-      setSendCount((prev) => prev + 1)
-    } else if (type === 'receive') {
-      setReceiveCount((prev) => prev + 1)
-    }
+    try {
+      const extraData = isAutoSend ? JSON.stringify({ is_auto_send: true }) : null
+      await messageService.create({
+        session_id: Number(id),
+        session_name: session.name,
+        direction,
+        content,
+        protocol_type: session.protocol_type,
+        extra_data: extraData,
+      })
 
-    setTimeout(() => {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-    }, 10)
-  }, [])
+      // 重新加载消息
+      loadMessages()
+    } catch (err) {
+      console.error('保存消息失败:', err)
+    }
+  }
 
   // 连接
   const handleConnect = async () => {
@@ -284,7 +314,7 @@ const SessionDetailPage = () => {
           setIsConnected(false)
           setConnectTime(null)
           stopAutoSend()
-          addMessage('system', '连接已断开')
+          await addMessageToBackend('system', '连接已断开')
         } else {
           alert(response.message || '断开失败')
         }
@@ -296,15 +326,15 @@ const SessionDetailPage = () => {
         if (response.code === 200) {
           setIsConnected(true)
           setConnectTime(new Date().toLocaleTimeString('zh-CN', { hour12: false }))
-          addMessage('system', `已连接到 ${session?.host}:${session?.port}`)
+          await addMessageToBackend('system', `已连接到 ${session?.host}:${session?.port}`)
         } else {
-          addMessage('system', `连接失败: ${response.message || '未知错误'}`)
+          await addMessageToBackend('system', `连接失败: ${response.message || '未知错误'}`)
         }
       }
       loadSession()
     } catch (err: any) {
       setIsConnecting(false)
-      addMessage('system', `操作失败: ${err.message || '网络错误'}`)
+      await addMessageToBackend('system', `操作失败: ${err.message || '网络错误'}`)
     } finally {
       setOperating(false)
     }
@@ -317,7 +347,7 @@ const SessionDetailPage = () => {
     try {
       const response = await sessionService.send(Number(id), sendData)
       if (response.code === 200) {
-        addMessage('send', sendData)
+        await addMessageToBackend('send', sendData)
         setSendData('')
       } else {
         alert(response.message || '发送失败')
@@ -327,14 +357,14 @@ const SessionDetailPage = () => {
     }
   }
 
-  // 发送单条消息
+  // 发送单条消息（自动发送用）
   const sendSingleMessage = async (content: string, isAutoSend = false) => {
     if (!content.trim() || !id) return false
 
     try {
       const response = await sessionService.send(Number(id), content)
       if (response.code === 200) {
-        addMessage('send', content, isAutoSend)
+        await addMessageToBackend('send', content, isAutoSend)
         return true
       }
       return false
@@ -345,27 +375,23 @@ const SessionDetailPage = () => {
 
   // 开始自动发送
   const startAutoSend = () => {
-    const enabledItems = autoSendItems.filter(
-      (item) => item.enabled && item.content.trim() && item.interval !== '' && item.interval >= 100
-    )
-    if (enabledItems.length === 0) {
-      alert('请至少添加一条有效的发送消息（间隔时间需 >= 100ms）')
+    const enabledConfigs = autoSendConfigs.filter((c) => c.is_enabled && c.message_content.trim())
+    if (enabledConfigs.length === 0) {
+      alert('请至少添加一条有效的发送消息')
       return
     }
 
     setAutoSendActive(true)
     autoSendRunningRef.current = true
-    addMessage('system', `自动发送已启动，共 ${enabledItems.length} 条消息`)
+    addMessageToBackend('system', `自动发送已启动，共 ${enabledConfigs.length} 条消息`)
 
     // 每条消息独立按自己的间隔发送
-    enabledItems.forEach((item, index) => {
-      const interval = typeof item.interval === 'number' ? item.interval : 100
-
+    enabledConfigs.forEach((config, index) => {
       const sendMessage = () => {
         if (!autoSendRunningRef.current) return
 
         setCurrentSendIndex(index)
-        sendSingleMessage(item.content, true)
+        sendSingleMessage(config.message_content, true)
       }
 
       // 立即发送第一条
@@ -376,9 +402,9 @@ const SessionDetailPage = () => {
         if (autoSendRunningRef.current) {
           sendMessage()
         }
-      }, interval)
+      }, config.interval_ms)
 
-      // 保存定时器引用以便停止
+      // 保存定时器引用
       if (!autoSendTimerRef.current) {
         autoSendTimerRef.current = [] as any
       }
@@ -397,14 +423,21 @@ const SessionDetailPage = () => {
     }
     setAutoSendActive(false)
     setCurrentSendIndex(0)
-    addMessage('system', '自动发送已停止')
+    addMessageToBackend('system', '自动发送已停止')
   }
 
   // 清空消息
-  const clearMessages = () => {
-    setMessages([])
-    setSendCount(0)
-    setReceiveCount(0)
+  const clearMessages = async () => {
+    if (!id) return
+
+    try {
+      await messageService.clearBySession(Number(id))
+      setMessages([])
+      setSendCount(0)
+      setReceiveCount(0)
+    } catch (err) {
+      console.error('清空消息失败:', err)
+    }
   }
 
   // 导出日志
@@ -412,8 +445,10 @@ const SessionDetailPage = () => {
     const log = messages
       .map((msg) => {
         const typeLabel =
-          msg.type === 'send' ? '发送' : msg.type === 'receive' ? '接收' : '系统'
-        return `[${msg.timestamp}] [${typeLabel}] ${msg.content}`
+          msg.direction === 'send' ? '发送' : msg.direction === 'receive' ? '接收' : '系统'
+        const extraData = msg.extra_data ? JSON.parse(msg.extra_data) : {}
+        const isAutoSend = extraData.is_auto_send ? '自动发送' : typeLabel
+        return `[${msg.timestamp}] [${msg.direction === 'send' ? isAutoSend : typeLabel}] ${msg.content}`
       })
       .join('\n')
     const blob = new Blob([log], { type: 'text/plain;charset=utf-8' })
@@ -463,25 +498,50 @@ const SessionDetailPage = () => {
     return content
   }
 
-  // 添加自动发送项
-  const addAutoSendItem = () => {
-    setAutoSendItems((prev) => [
-      ...prev,
-      { id: autoSendItemIdRef.current++, content: '', interval: 1000, enabled: true },
-    ])
+  // 添加自动发送配置
+  const addAutoSendConfig = async () => {
+    if (!id) return
+
+    try {
+      const response = await autoSendService.create({
+        session_id: Number(id),
+        message_content: '',
+        interval_ms: 1000,
+        is_enabled: true,
+        sort_order: autoSendConfigs.length,
+      })
+      if (response.code === 200 && response.data) {
+        setAutoSendConfigs((prev) => [...prev, response.data!])
+      }
+    } catch (err) {
+      console.error('添加自动发送配置失败:', err)
+    }
   }
 
-  // 删除自动发送项
-  const removeAutoSendItem = (itemId: number) => {
-    if (autoSendItems.length <= 1) return
-    setAutoSendItems((prev) => prev.filter((item) => item.id !== itemId))
+  // 删除自动发送配置
+  const removeAutoSendConfig = async (configId: number) => {
+    try {
+      await autoSendService.delete(configId)
+      setAutoSendConfigs((prev) => prev.filter((c) => c.id !== configId))
+    } catch (err) {
+      console.error('删除自动发送配置失败:', err)
+    }
   }
 
-  // 更新自动发送项
-  const updateAutoSendItem = (itemId: number, field: keyof AutoSendItem, value: any) => {
-    setAutoSendItems((prev) =>
-      prev.map((item) => (item.id === itemId ? { ...item, [field]: value } : item))
-    )
+  // 更新自动发送配置
+  const updateAutoSendConfig = async (
+    configId: number,
+    field: keyof AutoSendConfig,
+    value: any
+  ) => {
+    try {
+      await autoSendService.update(configId, { [field]: value })
+      setAutoSendConfigs((prev) =>
+        prev.map((c) => (c.id === configId ? { ...c, [field]: value } : c))
+      )
+    } catch (err) {
+      console.error('更新自动发送配置失败:', err)
+    }
   }
 
   if (loading) {
@@ -678,7 +738,11 @@ const SessionDetailPage = () => {
             }
           >
             <div className="h-full overflow-y-auto bg-black/40 rounded p-3 font-mono text-sm">
-              {messages.length === 0 ? (
+              {messagesLoading ? (
+                <div className="h-full flex items-center justify-center text-gray-500">
+                  <RefreshCw className="w-6 h-6 animate-spin" />
+                </div>
+              ) : messages.length === 0 ? (
                 <div className="h-full flex flex-col items-center justify-center text-gray-500">
                   <Activity className="w-12 h-12 mb-3 opacity-30" />
                   <p>暂无通信记录</p>
@@ -686,65 +750,70 @@ const SessionDetailPage = () => {
                 </div>
               ) : (
                 <div className="space-y-1">
-                  {messages.map((msg) => (
-                    <div
-                      key={msg.id}
-                      className={`py-1.5 px-2 rounded ${
-                        msg.type === 'send'
-                          ? 'bg-signal-blue/10 border-l-2 border-signal-blue'
-                          : msg.type === 'receive'
-                          ? 'bg-signal-green/10 border-l-2 border-signal-green'
-                          : 'bg-yellow-500/10 border-l-2 border-yellow-500'
-                      }`}
-                    >
-                      <div className="flex items-start gap-2">
-                        {msg.type === 'send' ? (
-                          <ArrowUpRight className="w-4 h-4 mt-0.5 flex-shrink-0 text-signal-blue" />
-                        ) : msg.type === 'receive' ? (
-                          <ArrowDownLeft className="w-4 h-4 mt-0.5 flex-shrink-0 text-signal-green" />
-                        ) : (
-                          <Wifi className="w-4 h-4 mt-0.5 flex-shrink-0 text-yellow-500" />
-                        )}
+                  {messages.map((msg) => {
+                    const extraData = msg.extra_data ? JSON.parse(msg.extra_data) : {}
+                    const isAutoSend = extraData.is_auto_send
 
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
-                            {showTimestamp && (
-                              <span className="text-gray-500 text-xs">{msg.timestamp}</span>
-                            )}
-                            <span
-                              className={`text-xs ${
-                                msg.type === 'send'
-                                  ? 'text-signal-blue'
-                                  : msg.type === 'receive'
-                                  ? 'text-signal-green'
-                                  : 'text-yellow-500'
-                              }`}
-                            >
-                              [
-                              {msg.type === 'send'
-                                ? msg.isAutoSend
-                                  ? '自动发送'
-                                  : '发送'
-                                : msg.type === 'receive'
-                                ? '接收'
-                                : '系统'}
-                              ]
-                            </span>
-                          </div>
-
-                          <div className="text-gray-200 break-all whitespace-pre-wrap">
-                            {msg.content}
-                          </div>
-
-                          {showHex && msg.hex && (
-                            <div className="text-gray-500 text-xs mt-1 font-mono">
-                              HEX: {msg.hex}
-                            </div>
+                    return (
+                      <div
+                        key={msg.id}
+                        className={`py-1.5 px-2 rounded ${
+                          msg.direction === 'send'
+                            ? 'bg-signal-blue/10 border-l-2 border-signal-blue'
+                            : msg.direction === 'receive'
+                            ? 'bg-signal-green/10 border-l-2 border-signal-green'
+                            : 'bg-yellow-500/10 border-l-2 border-yellow-500'
+                        }`}
+                      >
+                        <div className="flex items-start gap-2">
+                          {msg.direction === 'send' ? (
+                            <ArrowUpRight className="w-4 h-4 mt-0.5 flex-shrink-0 text-signal-blue" />
+                          ) : msg.direction === 'receive' ? (
+                            <ArrowDownLeft className="w-4 h-4 mt-0.5 flex-shrink-0 text-signal-green" />
+                          ) : (
+                            <Wifi className="w-4 h-4 mt-0.5 flex-shrink-0 text-yellow-500" />
                           )}
+
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              {showTimestamp && (
+                                <span className="text-gray-500 text-xs">{msg.timestamp}</span>
+                              )}
+                              <span
+                                className={`text-xs ${
+                                  msg.direction === 'send'
+                                    ? 'text-signal-blue'
+                                    : msg.direction === 'receive'
+                                    ? 'text-signal-green'
+                                    : 'text-yellow-500'
+                                }`}
+                              >
+                                [
+                                {msg.direction === 'send'
+                                  ? isAutoSend
+                                    ? '自动发送'
+                                    : '发送'
+                                  : msg.direction === 'receive'
+                                  ? '接收'
+                                  : '系统'}
+                                ]
+                              </span>
+                            </div>
+
+                            <div className="text-gray-200 break-all whitespace-pre-wrap">
+                              {msg.content}
+                            </div>
+
+                            {showHex && msg.content_hex && (
+                              <div className="text-gray-500 text-xs mt-1 font-mono">
+                                HEX: {msg.content_hex}
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    )
+                  })}
                   <div ref={messagesEndRef} />
                 </div>
               )}
@@ -871,12 +940,12 @@ const SessionDetailPage = () => {
 
             <div className="flex-1 overflow-y-auto p-4 space-y-3">
               <p className="text-sm text-gray-400">
-                配置多条消息，按顺序循环发送。每条消息可设置独立的发送间隔。
+                配置多条消息，每条消息按独立间隔循环发送。
               </p>
 
-              {autoSendItems.map((item, index) => (
+              {autoSendConfigs.map((config, index) => (
                 <div
-                  key={item.id}
+                  key={config.id}
                   className={`p-3 rounded border ${
                     autoSendActive && currentSendIndex === index
                       ? 'border-signal-blue bg-signal-blue/10'
@@ -893,8 +962,8 @@ const SessionDetailPage = () => {
                     <div className="flex-1 space-y-2">
                       {/* 消息内容 */}
                       <textarea
-                        value={item.content}
-                        onChange={(e) => updateAutoSendItem(item.id, 'content', e.target.value)}
+                        value={config.message_content}
+                        onChange={(e) => updateAutoSendConfig(config.id, 'message_content', e.target.value)}
                         placeholder="输入消息内容..."
                         className="input-field h-16 resize-none font-mono text-sm w-full"
                         disabled={autoSendActive}
@@ -906,22 +975,22 @@ const SessionDetailPage = () => {
                           <span className="text-xs text-gray-400">发送后等待</span>
                           <input
                             type="number"
-                            value={item.interval}
+                            value={config.interval_ms}
                             onChange={(e) => {
                               const val = e.target.value
                               if (val === '') {
-                                updateAutoSendItem(item.id, 'interval', '' as any)
+                                updateAutoSendConfig(config.id, 'interval_ms', '' as any)
                               } else {
                                 const num = Number(val)
                                 if (num <= 86400000) {
-                                  updateAutoSendItem(item.id, 'interval', num)
+                                  updateAutoSendConfig(config.id, 'interval_ms', num)
                                 }
                               }
                             }}
                             onBlur={(e) => {
                               const val = Number(e.target.value)
                               if (val < 100) {
-                                updateAutoSendItem(item.id, 'interval', 100)
+                                updateAutoSendConfig(config.id, 'interval_ms', 100)
                               }
                             }}
                             className="input-field w-20 text-sm py-1"
@@ -936,8 +1005,8 @@ const SessionDetailPage = () => {
                         <label className="flex items-center gap-1.5 cursor-pointer">
                           <input
                             type="checkbox"
-                            checked={item.enabled}
-                            onChange={(e) => updateAutoSendItem(item.id, 'enabled', e.target.checked)}
+                            checked={config.is_enabled}
+                            onChange={(e) => updateAutoSendConfig(config.id, 'is_enabled', e.target.checked)}
                             className="accent-signal-blue"
                             disabled={autoSendActive}
                           />
@@ -945,8 +1014,8 @@ const SessionDetailPage = () => {
                         </label>
 
                         <button
-                          onClick={() => removeAutoSendItem(item.id)}
-                          disabled={autoSendActive || autoSendItems.length <= 1}
+                          onClick={() => removeAutoSendConfig(config.id)}
+                          disabled={autoSendActive || autoSendConfigs.length <= 1}
                           className="p-1 rounded text-gray-400 hover:text-signal-red hover:bg-signal-red/20 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -959,7 +1028,7 @@ const SessionDetailPage = () => {
 
               {/* 添加按钮 */}
               <button
-                onClick={addAutoSendItem}
+                onClick={addAutoSendConfig}
                 disabled={autoSendActive}
                 className="w-full py-2 border border-dashed border-panel-border rounded text-gray-400 hover:text-signal-blue hover:border-signal-blue transition-colors disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
@@ -978,7 +1047,7 @@ const SessionDetailPage = () => {
                   setAutoSendDialogOpen(false)
                   startAutoSend()
                 }}
-                disabled={autoSendItems.filter((i) => i.enabled && i.content.trim()).length === 0}
+                disabled={autoSendConfigs.filter((c) => c.is_enabled && c.message_content.trim()).length === 0}
               >
                 开始发送
               </Button>
