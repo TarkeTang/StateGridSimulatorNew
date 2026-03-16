@@ -66,12 +66,15 @@ body {
   }
 
   /* Panel flex 支持 */
-  .panel.flex {
-    @apply flex flex-col;
+  .panel.is-flex {
+    display: flex;
+    flex-direction: column;
   }
 
-  .panel.flex > .panel-content {
-    @apply flex-1 min-h-0 overflow-auto;
+  .panel.is-flex > .panel-content {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
   }
 
   /* 按钮样式 */
