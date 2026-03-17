@@ -181,7 +181,7 @@ class SessionConfigService:
         )
 
         # 注册到 TCP 管理器
-        tcp_manager._connections[config.id] = conn
+        tcp_manager.connections[config.id] = conn
 
         return await conn.connect()
 
