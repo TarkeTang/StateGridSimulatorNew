@@ -275,7 +275,18 @@ class StateGrid57TcpConnection:
                 hex_str = content[4:].strip()
                 raw_data = bytes.fromhex(hex_str)
                 log.info(f"发送十六进制报文: {hex_str[:40]}...")
-            
+
+            # 检查是否是 XML 格式（用户输入完整XML）
+            elif content.strip().startswith("<?xml") or content.strip().startswith("<"):
+                # XML 格式，直接打包成协议消息（只加 EB90 头尾）
+                session_num = self._protocol_handler._get_next_session_num()
+                raw_data = StateGrid57Protocol.packetize(
+                    session_source="request",
+                    send_session_num=session_num,
+                    xml_content=content.strip(),
+                )
+                log.info(f"发送XML格式消息，长度: {len(content)}")
+
             # 尝试解析为 JSON
             elif content.strip().startswith("{"):
                 try:
@@ -294,7 +305,7 @@ class StateGrid57TcpConnection:
                         message_type="64",
                         items=[{"content": content}],
                     )
-            
+
             # 普通文本，打包成协议消息
             else:
                 raw_data = self._protocol_handler.create_data_message(
@@ -306,7 +317,7 @@ class StateGrid57TcpConnection:
             # 发送数据
             self.writer.write(raw_data)
             await self.writer.drain()
-            
+
             log.info(f"国网57号文协议发送成功: 长度={len(raw_data)}, 报文头={raw_data[:4].hex().upper()}")
 
             # 记录消息
@@ -320,7 +331,6 @@ class StateGrid57TcpConnection:
                 )
 
             return True
-
         except Exception as e:
             log.error(f"发送消息失败: {e}")
             return False
