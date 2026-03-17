@@ -13,8 +13,9 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional
 
+from src.db.session import AsyncSessionLocal
 from src.repositories.auto_send_repository import AutoSendConfigRepository
 from src.schemas.auto_send import AutoSendConfigResponse
 from src.utils.logger import get_logger
@@ -63,8 +64,6 @@ class AutoSendService:
         self._session_managers: Dict[int, SessionAutoSendManager] = {}
         # 发送回调函数
         self._send_callback: Optional[callable] = None
-        # 数据库会话工厂
-        self._db_session_factory: Optional[callable] = None
 
     def set_send_callback(self, callback: callable):
         """
@@ -76,16 +75,9 @@ class AutoSendService:
         self._send_callback = callback
         log.info("设置自动发送回调函数")
 
-    def set_db_session_factory(self, factory: callable):
-        """设置数据库会话工厂"""
-        self._db_session_factory = factory
-
     async def load_configs(self, session_id: int) -> List[AutoSendConfigResponse]:
         """加载会话的自动发送配置"""
-        if not self._db_session_factory:
-            return []
-
-        async with self._db_session_factory() as db:
+        async with AsyncSessionLocal() as db:
             repo = AutoSendConfigRepository(db)
             configs = await repo.get_by_session(session_id)
             return [AutoSendConfigResponse.model_validate(c) for c in configs]

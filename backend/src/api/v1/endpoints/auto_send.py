@@ -277,7 +277,6 @@ auto_send_service.set_send_callback(_send_callback)
 )
 async def start_auto_send(
     session_id: int,
-    db: AsyncSession = Depends(get_db_session),
 ):
     """启动自动发送"""
     # 检查会话是否已连接
@@ -287,11 +286,6 @@ async def start_auto_send(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="会话未连接，请先建立连接",
         )
-
-    # 设置数据库会话工厂
-    from src.api.deps import get_async_session_factory
-
-    auto_send_service.set_db_session_factory(get_async_session_factory)
 
     result = await auto_send_service.start(session_id)
     if not result.get("success"):
