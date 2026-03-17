@@ -40,7 +40,8 @@ export interface UseSessionDetailReturn {
   loadSession: () => Promise<void>
   handleConnect: () => Promise<void>
   handleSend: (data: string) => Promise<boolean>
-  clearMessages: () => Promise<void>
+  clearMessages: () => void
+  exportMessages: () => void
   addLocalMessage: (direction: 'send' | 'receive' | 'system', content: string, isAutoSend?: boolean) => void
 }
 
@@ -219,19 +220,44 @@ export function useSessionDetail({ sessionId }: UseSessionDetailOptions): UseSes
     [isConnected, sessionId]
   )
 
-  // 清空消息
-  const clearMessages = useCallback(async () => {
-    if (!sessionId) return
+  // 清空消息（只清理前端展示，不删除数据库）
+  const clearMessages = useCallback(() => {
+    setMessages([])
+    setSendCount(0)
+    setReceiveCount(0)
+  }, [])
 
-    try {
-      await messageService.clearBySession(sessionId)
-      setMessages([])
-      setSendCount(0)
-      setReceiveCount(0)
-    } catch (err) {
-      console.error('清空消息失败:', err)
+  // 导出消息到 Excel
+  const exportMessages = useCallback(() => {
+    if (messages.length === 0) {
+      alert('暂无消息可导出')
+      return
     }
-  }, [sessionId])
+
+    // 构建 CSV 内容（Excel 兼容）
+    const headers = ['序号', '时间', '方向', '内容']
+    const rows = messages.map((msg, index) => {
+      const direction = msg.direction === 'send' ? '发送' : msg.direction === 'receive' ? '接收' : '系统'
+      // 处理内容中的换行符和引号
+      const content = msg.content.replace(/"/g, '""').replace(/\n/g, '\\n')
+      return [index + 1, msg.timestamp, direction, `"${content}"`]
+    })
+
+    // 添加 BOM 以支持中文
+    const BOM = '\uFEFF'
+    const csvContent = BOM + [headers.join(','), ...rows.map(row => row.join(','))].join('\n')
+
+    // 创建下载
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `通信记录_${session?.name || sessionId}_${new Date().toISOString().slice(0, 10)}.csv`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+  }, [messages, session, sessionId])
 
   // 初始化
   useEffect(() => {
@@ -345,6 +371,7 @@ export function useSessionDetail({ sessionId }: UseSessionDetailOptions): UseSes
     handleConnect,
     handleSend,
     clearMessages,
+    exportMessages,
     addLocalMessage,
   }
 }

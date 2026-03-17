@@ -122,6 +122,8 @@ class ConnectionManager:
 
     async def broadcast_to_session(self, session_id: int, message: Dict[str, Any]):
         """广播消息给订阅指定会话的连接"""
+        log.info(f"broadcast_to_session: session_id={session_id}, 已订阅的会话={list(self.session_connections.keys())}")
+        
         if session_id not in self.session_connections:
             log.warning(f"广播失败: 没有订阅会话 {session_id} 的连接")
             return

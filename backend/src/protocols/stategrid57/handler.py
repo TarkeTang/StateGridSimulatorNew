@@ -64,47 +64,38 @@ class StateGrid57Handler:
 
     async def handle_receive(self, data: bytes) -> Optional[bytes]:
         """
-        处理接收到的数据
+        处理接收到的数据（不含头尾标识）
 
         Args:
-            data: 接收到的原始数据
+            data: 接收到的报文内容（不含EB90头尾）
 
         Returns:
             需要发送的响应数据（如果有）
         """
-        # 分割报文
-        packets = StateGrid57Protocol.split_packets(data)
+        # 直接解析报文（数据已经不含头尾）
+        message = StateGrid57Protocol.depacketize(data)
+        if not message:
+            log.warning(f"解析报文失败: {StateGrid57Protocol.format_hex_display(data)}")
+            return None
 
-        responses = []
-        for packet in packets:
-            # 解析报文
-            message = StateGrid57Protocol.depacketize(packet)
-            if not message:
-                log.warning(f"解析报文失败: {StateGrid57Protocol.format_hex_display(packet)}")
-                continue
+        log.info(
+            f"收到消息: type={message.message_type}, "
+            f"command={message.message_command}, "
+            f"session_num={message.send_session_num}, "
+            f"send_code={message.send_code}, "
+            f"receive_code={message.receive_code}"
+        )
 
-            log.info(
-                f"收到消息: type={message.message_type}, "
-                f"command={message.message_command}, "
-                f"session_num={message.send_session_num}"
-            )
+        # 回调通知
+        if self.on_message:
+            try:
+                self.on_message(message)
+            except Exception as e:
+                log.error(f"消息回调执行失败: {e}")
 
-            # 回调通知
-            if self.on_message:
-                try:
-                    self.on_message(message)
-                except Exception as e:
-                    log.error(f"消息回调执行失败: {e}")
-
-            # 处理消息
-            response = await self._process_message(message)
-            if response:
-                responses.append(response)
-
-        # 合并响应
-        if responses:
-            return b"".join(responses)
-        return None
+        # 处理消息
+        response = await self._process_message(message)
+        return response
 
     async def _process_message(self, message: StateGrid57Message) -> Optional[bytes]:
         """
