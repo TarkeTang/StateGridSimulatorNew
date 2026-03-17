@@ -6,6 +6,7 @@ TCP 连接管理器
 - TCP 服务端监听
 - 异步数据收发
 - 自动重连
+- 消息自动持久化
 - WebSocket 消息推送
 """
 
@@ -15,8 +16,9 @@ import asyncio
 from datetime import datetime
 from typing import Any, Callable, Dict, Optional
 
+from src.services.message_handler import message_handler
 from src.utils.logger import get_logger
-from src.utils.websocket_manager import push_session_status, push_communication_message
+from src.utils.websocket_manager import push_session_status
 
 log = get_logger("tcp_manager")
 
@@ -53,6 +55,7 @@ class TcpConnection:
         self.reconnect_count: int = 0
         self.buffer_size: int = 4096
         self.encoding: str = "UTF-8"
+        self.protocol_type: str = "TCP"
 
     async def connect(self) -> bool:
         """建立 TCP 连接"""
@@ -74,6 +77,13 @@ class TcpConnection:
             self.reconnect_count = 0
             self._notify_status_change("connected")
             log.info(f"TCP 连接成功: {self.host}:{self.port}")
+
+            # 注册会话到消息处理器
+            message_handler.register_session(
+                session_id=self.session_id,
+                session_name=self.session_name,
+                protocol_type=self.protocol_type,
+            )
 
             # 启动接收任务
             self.receive_task = asyncio.create_task(self._receive_loop())
@@ -137,6 +147,10 @@ class TcpConnection:
 
             self.reader = None
             self.status = "disconnected"
+
+            # 注销会话
+            message_handler.unregister_session(self.session_id)
+
             self._notify_status_change("disconnected")
             log.info(f"TCP 连接已断开: {self.host}:{self.port}")
             return True
@@ -145,7 +159,7 @@ class TcpConnection:
             log.error(f"断开连接异常: {e}")
             return False
 
-    async def send(self, data: str) -> bool:
+    async def send(self, data: str, is_auto_send: bool = False) -> bool:
         """发送数据"""
         if self.status != "connected" or not self.writer:
             log.warning(f"会话 {self.session_name} 未连接，无法发送数据")
@@ -158,10 +172,14 @@ class TcpConnection:
             await self.writer.drain()
 
             log.info(f"TCP 发送数据: {self.session_name}, 长度: {len(encoded_data)}")
-            
-            # 通知消息回调
-            if self.on_message:
-                self.on_message(self.session_id, "send", data)
+
+            # 使用消息处理器处理发送消息（自动持久化和推送）
+            await message_handler.handle_send(
+                session_id=self.session_id,
+                content=data,
+                is_auto_send=is_auto_send,
+                save_to_db=True,
+            )
 
             return True
 
@@ -206,11 +224,20 @@ class TcpConnection:
                 except UnicodeDecodeError:
                     text = data.hex()
 
+                # 获取十六进制表示
+                content_hex = data.hex().upper()
+                # 格式化十六进制（每字节空格分隔）
+                content_hex = " ".join([content_hex[i : i + 2] for i in range(0, len(content_hex), 2)])
+
                 log.info(f"TCP 接收数据: {self.session_name}, 长度: {len(data)}")
 
-                # 通知消息回调
-                if self.on_message:
-                    self.on_message(self.session_id, "receive", text)
+                # 使用消息处理器处理接收消息（自动持久化和推送）
+                await message_handler.handle_receive(
+                    session_id=self.session_id,
+                    content=text,
+                    content_hex=content_hex,
+                    save_to_db=True,
+                )
 
             except asyncio.CancelledError:
                 break
@@ -226,7 +253,7 @@ class TcpConnection:
 
         old_status = self.status
         self.status = "disconnected"
-        
+
         # 清理资源
         if self.writer:
             try:
@@ -236,6 +263,9 @@ class TcpConnection:
                 pass
             self.writer = None
         self.reader = None
+
+        # 注销会话
+        message_handler.unregister_session(self.session_id)
 
         # 通知状态变更
         self._notify_status_change("disconnected", "连接已断开")
@@ -258,7 +288,7 @@ class TcpConnection:
             )
 
             await asyncio.sleep(self.reconnect_interval / 1000)
-            
+
             success = await self.connect()
             if success:
                 log.info(f"自动重连成功: {self.host}:{self.port}")
@@ -338,14 +368,14 @@ class TcpConnectionManager:
         for session_id in list(self.connections.keys()):
             await self.disconnect(session_id)
 
-    async def send(self, session_id: int, data: str) -> bool:
+    async def send(self, session_id: int, data: str, is_auto_send: bool = False) -> bool:
         """发送数据"""
         conn = self.connections.get(session_id)
         if not conn:
             log.error(f"会话 {session_id} 不存在")
             return False
 
-        return await conn.send(data)
+        return await conn.send(data, is_auto_send=is_auto_send)
 
     async def send_bytes(self, session_id: int, data: bytes) -> bool:
         """发送字节数据"""
@@ -366,16 +396,8 @@ class TcpConnectionManager:
         return conn.status if conn else "disconnected"
 
     def _on_message(self, session_id: int, direction: str, content: str):
-        """消息回调 - 推送到 WebSocket"""
-        log.info(f"TCP 消息回调: session={session_id}, direction={direction}")
-        # 推送消息到 WebSocket
-        asyncio.create_task(
-            push_communication_message(
-                session_id=session_id,
-                direction=direction,
-                content=content,
-            )
-        )
+        """消息回调（已由 message_handler 处理，此处保留兼容）"""
+        pass
 
     def _on_status_change(self, session_id: int, status: str, error_message: Optional[str] = None):
         """状态变更回调 - 推送到 WebSocket"""

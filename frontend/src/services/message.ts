@@ -3,7 +3,6 @@
  */
 
 import api from './api'
-import type { ApiResponse } from '@/types/api'
 
 // ==================== 类型定义 ====================
 
@@ -79,7 +78,7 @@ export const messageService = {
    * 创建消息记录
    */
   create: (data: SessionMessageCreate) => {
-    return api.post<ApiResponse<SessionMessage>>('/messages', data)
+    return api.post<SessionMessage>('/messages', data)
   },
 
   /**
@@ -93,7 +92,7 @@ export const messageService = {
     if (params.start_time) queryParams.append('start_time', params.start_time)
     if (params.end_time) queryParams.append('end_time', params.end_time)
 
-    return api.get<ApiResponse<SessionMessageListResponse>>(
+    return api.get<SessionMessageListResponse>(
       `/messages/session/${sessionId}?${queryParams.toString()}`
     )
   },
@@ -102,20 +101,20 @@ export const messageService = {
    * 获取消息详情
    */
   getById: (messageId: number) => {
-    return api.get<ApiResponse<SessionMessage>>(`/messages/${messageId}`)
+    return api.get<SessionMessage>(`/messages/${messageId}`)
   },
 
   /**
    * 清空会话消息
    */
   clearBySession: (sessionId: number) => {
-    return api.delete<ApiResponse<null>>(`/messages/session/${sessionId}`)
+    return api.delete<null>(`/messages/session/${sessionId}`)
   },
 
   /**
    * 获取会话消息统计
    */
   getStatistics: (sessionId: number) => {
-    return api.get<ApiResponse<MessageStatistics>>(`/messages/session/${sessionId}/statistics`)
+    return api.get<MessageStatistics>(`/messages/session/${sessionId}/statistics`)
   },
 }

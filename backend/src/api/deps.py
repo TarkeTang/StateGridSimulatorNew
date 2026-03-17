@@ -28,6 +28,11 @@ async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
             raise
 
 
+def get_async_session_factory():
+    """获取数据库会话工厂（用于服务层）"""
+    return AsyncSessionLocal
+
+
 async def get_current_user_id(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
 ) -> Optional[int]:

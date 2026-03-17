@@ -3,7 +3,6 @@
  */
 
 import api from './api'
-import type { ApiResponse } from '@/types/api'
 
 // ==================== 类型定义 ====================
 
@@ -40,14 +39,14 @@ export const dictService = {
    * 获取字典类型列表
    */
   getTypes: () => {
-    return api.get<ApiResponse<DictType[]>>('/dict/types')
+    return api.get<DictType[]>('/dict/types')
   },
 
   /**
    * 根据类型编码获取字典数据
    */
   getDataByType: (typeCode: string) => {
-    return api.get<ApiResponse<DictData[]>>(`/dict/data/${typeCode}`)
+    return api.get<DictData[]>(`/dict/data/${typeCode}`)
   },
 
   /**

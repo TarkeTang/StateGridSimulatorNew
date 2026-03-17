@@ -139,7 +139,7 @@ const SessionManagePage = () => {
         Object.keys(formData).forEach((key) => {
           const k = key as keyof SessionConfigCreate
           if (formData[k] !== undefined) {
-            updateData[k] = formData[k]
+            (updateData as Record<string, unknown>)[k] = formData[k]
           }
         })
         const response = await sessionService.update(editingSession.id, updateData)

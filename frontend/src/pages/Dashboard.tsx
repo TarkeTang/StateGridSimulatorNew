@@ -7,7 +7,7 @@ const Dashboard = () => {
   const [time, setTime] = useState(0)
 
   useEffect(() => {
-    let interval: NodeJS.Timeout
+    let interval: ReturnType<typeof setInterval>
     if (isRunning) {
       interval = setInterval(() => {
         setTime((t) => t + 1)
