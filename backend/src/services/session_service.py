@@ -224,15 +224,14 @@ class SessionConfigService:
         # 参数替换
         from src.utils.parameter_resolver import resolve_parameters_sync
         from src.repositories.parameter_repository import ParameterRepository
-        
+
         # 获取所有启用的参数配置
-        async with self.repository.db.begin():
-            repo = ParameterRepository(self.repository.db)
-            parameters = await repo.get_all_enabled()
-        
+        repo = ParameterRepository(self.repository.db)
+        parameters = await repo.get_all_enabled()
+
         # 执行参数替换
         processed_data = resolve_parameters_sync(data, parameters)
-        
+
         log.info(f"发送消息: 原始长度={len(data)}, 替换后长度={len(processed_data)}")
 
         return await tcp_manager.send(config_id, processed_data)

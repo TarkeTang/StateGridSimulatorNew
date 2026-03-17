@@ -9,14 +9,23 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models.parameter import ParameterConfig
 from src.schemas.parameter import ParameterConfigCreate, ParameterConfigUpdate
-from src.repositories.base import BaseRepository
+from src.utils.logger import get_logger
+
+log = get_logger("repository")
 
 
-class ParameterRepository(BaseRepository[ParameterConfig]):
+class ParameterRepository:
     """参数化配置 Repository"""
 
     def __init__(self, db: AsyncSession):
-        super().__init__(ParameterConfig, db)
+        self.db = db
+
+    async def get_by_id(self, config_id: int) -> Optional[ParameterConfig]:
+        """根据ID获取参数配置"""
+        result = await self.db.execute(
+            select(ParameterConfig).where(ParameterConfig.id == config_id)
+        )
+        return result.scalar_one_or_none()
 
     async def get_by_name(self, name: str) -> Optional[ParameterConfig]:
         """根据名称获取参数配置"""
@@ -31,6 +40,13 @@ class ParameterRepository(BaseRepository[ParameterConfig]):
             select(ParameterConfig)
             .where(ParameterConfig.is_enabled == True)
             .order_by(ParameterConfig.sort_order, ParameterConfig.id)
+        )
+        return list(result.scalars().all())
+
+    async def get_all(self) -> List[ParameterConfig]:
+        """获取所有参数配置"""
+        result = await self.db.execute(
+            select(ParameterConfig).order_by(ParameterConfig.sort_order, ParameterConfig.id)
         )
         return list(result.scalars().all())
 
