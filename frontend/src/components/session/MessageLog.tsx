@@ -2,7 +2,7 @@
  * 消息记录组件
  */
 
-import { useRef } from 'react'
+import { useRef, useEffect } from 'react'
 import { Panel, Button } from '@/components/ui'
 import { Trash2, Download, RefreshCw, Activity, ArrowUpRight, ArrowDownLeft, Wifi } from 'lucide-react'
 import type { SessionMessage } from '@/services/message'
@@ -25,6 +25,17 @@ export function MessageLog({
   onToggleTimestamp,
 }: MessageLogProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  // 消息更新时自动滚动到底部
+  useEffect(() => {
+    if (messages.length > 0) {
+      // 使用 requestAnimationFrame 确保 DOM 更新后再滚动
+      requestAnimationFrame(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+      })
+    }
+  }, [messages])
 
   return (
     <Panel
@@ -52,7 +63,7 @@ export function MessageLog({
         </div>
       }
     >
-      <div className="h-full overflow-y-auto bg-black/40 rounded p-3 font-mono text-sm">
+      <div ref={containerRef} className="h-full overflow-y-auto bg-black/40 rounded p-3 font-mono text-sm">
         {loading ? (
           <div className="h-full flex items-center justify-center text-gray-500">
             <RefreshCw className="w-6 h-6 animate-spin" />

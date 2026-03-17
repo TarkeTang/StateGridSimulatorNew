@@ -9,7 +9,7 @@
  * - 加载旧连接消息
  */
 
-import { useState, useCallback, useEffect, useRef } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { sessionService, type SessionConfig } from '@/services/session'
 import { messageService, type SessionMessage } from '@/services/message'
 import { wsClient, type CommunicationData, type SessionStatusData } from '@/services/websocket'
@@ -61,9 +61,6 @@ export function useSessionDetail({ sessionId }: UseSessionDetailOptions): UseSes
   const [messages, setMessages] = useState<SessionMessage[]>([])
   const [sendCount, setSendCount] = useState(0)
   const [receiveCount, setReceiveCount] = useState(0)
-
-  // 消息结束引用
-  const messagesEndRef = useRef<HTMLDivElement | null>(null)
 
   // 加载会话配置
   const loadSession = useCallback(async () => {
@@ -147,11 +144,6 @@ export function useSessionDetail({ sessionId }: UseSessionDetailOptions): UseSes
       } else if (direction === 'receive') {
         setReceiveCount((prev) => prev + 1)
       }
-
-      // 滚动到底部
-      setTimeout(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-      }, 10)
     },
     [sessionId, session]
   )
@@ -319,11 +311,6 @@ export function useSessionDetail({ sessionId }: UseSessionDetailOptions): UseSes
       } else if (data.direction === 'receive') {
         setReceiveCount((prev) => prev + 1)
       }
-
-      // 滚动到底部
-      setTimeout(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-      }, 10)
     })
 
     // 监听会话状态

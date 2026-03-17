@@ -257,12 +257,25 @@ async def reorder_configs(
 
 
 async def _send_callback(session_id: int, content: str, is_auto_send: bool = True) -> bool:
-    """自动发送回调函数"""
+    """自动发送回调函数（支持参数替换）"""
     conn = tcp_manager.get_connection(session_id)
     if not conn or conn.status != "connected":
         log.warning(f"会话 {session_id} 未连接，无法自动发送")
         return False
-    return await tcp_manager.send(session_id, content, is_auto_send=is_auto_send)
+    
+    # 参数替换
+    from src.utils.parameter_resolver import resolve_parameters_sync
+    from src.repositories.parameter_repository import ParameterRepository
+    from src.db.session import AsyncSessionLocal
+    
+    async with AsyncSessionLocal() as db:
+        repo = ParameterRepository(db)
+        parameters = await repo.get_all_enabled()
+        processed_content = resolve_parameters_sync(content, parameters)
+    
+    log.info(f"自动发送: 原始长度={len(content)}, 替换后长度={len(processed_content)}")
+    
+    return await tcp_manager.send(session_id, processed_content, is_auto_send=is_auto_send)
 
 
 # 设置自动发送回调

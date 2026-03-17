@@ -215,13 +215,26 @@ class SessionConfigService:
         return SessionConfigResponse.model_validate(config)
 
     async def send_message(self, config_id: int, data: str) -> bool:
-        """发送消息"""
+        """发送消息（支持参数替换）"""
         # 检查 TCP 连接是否存在且已连接
         conn = tcp_manager.get_connection(config_id)
         if not conn or conn.status != "connected":
             raise ValueError("会话未连接，请先建立连接")
 
-        return await tcp_manager.send(config_id, data)
+        # 参数替换
+        from src.utils.parameter_resolver import resolve_parameters_sync
+        from src.repositories.parameter_repository import ParameterRepository
+
+        # 获取所有启用的参数配置
+        repo = ParameterRepository(self.repository.db)
+        parameters = await repo.get_all_enabled()
+
+        # 执行参数替换
+        processed_data = resolve_parameters_sync(data, parameters)
+
+        log.info(f"发送消息: 原始长度={len(data)}, 替换后长度={len(processed_data)}")
+
+        return await tcp_manager.send(config_id, processed_data)
 
     async def get_all_enabled_sessions(self) -> List[SessionConfigResponse]:
         """获取所有启用的会话配置"""

@@ -6,6 +6,7 @@ from src.models.session import SessionConfig
 from src.models.connection import ConnectionSession
 from src.models.message import SessionMessage, MessageStatistics
 from src.models.auto_send import AutoSendConfig
+from src.models.parameter import ParameterConfig
 
 __all__ = [
     "Base",
@@ -17,4 +18,5 @@ __all__ = [
     "SessionMessage",
     "MessageStatistics",
     "AutoSendConfig",
+    "ParameterConfig",
 ]
