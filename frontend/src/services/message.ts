@@ -8,8 +8,9 @@ import api from './api'
 
 export interface SessionMessage {
   id: number
-  session_id: number
-  session_name: string | null
+  connection_id: number
+  session_id: string  // 格式: {config_id}_{timestamp}
+  config_id: number
   direction: 'send' | 'receive' | 'system'
   content: string
   content_hex: string | null
@@ -36,8 +37,9 @@ export interface SessionMessageListResponse {
 }
 
 export interface SessionMessageCreate {
-  session_id: number
-  session_name?: string
+  connection_id: number
+  session_id: string
+  config_id: number
   direction: 'send' | 'receive' | 'system'
   content: string
   content_hex?: string
@@ -56,19 +58,6 @@ export interface MessageListParams {
   direction?: string
   start_time?: string
   end_time?: string
-}
-
-export interface MessageStatistics {
-  id: number
-  session_id: number
-  total_send: number
-  total_receive: number
-  total_bytes_send: number
-  total_bytes_receive: number
-  total_errors: number
-  first_message_at: string | null
-  last_message_at: string | null
-  updated_at: string
 }
 
 // ==================== API 服务 ====================
@@ -98,6 +87,13 @@ export const messageService = {
   },
 
   /**
+   * 获取配置的最近消息（用于显示旧连接消息）
+   */
+  getRecentByConfig: (configId: number, limit: number = 10) => {
+    return api.get<SessionMessage[]>(`/messages/config/${configId}/recent?limit=${limit}`)
+  },
+
+  /**
    * 获取消息详情
    */
   getById: (messageId: number) => {
@@ -109,12 +105,5 @@ export const messageService = {
    */
   clearBySession: (sessionId: number) => {
     return api.delete<null>(`/messages/session/${sessionId}`)
-  },
-
-  /**
-   * 获取会话消息统计
-   */
-  getStatistics: (sessionId: number) => {
-    return api.get<MessageStatistics>(`/messages/session/${sessionId}/statistics`)
   },
 }

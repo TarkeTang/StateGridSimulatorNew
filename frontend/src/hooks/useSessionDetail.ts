@@ -6,6 +6,7 @@
  * - 连接/断开操作
  * - 消息发送
  * - WebSocket 实时通信
+ * - 加载旧连接消息
  */
 
 import { useState, useCallback, useEffect, useRef } from 'react'
@@ -84,19 +85,18 @@ export function useSessionDetail({ sessionId }: UseSessionDetailOptions): UseSes
     }
   }, [sessionId])
 
-  // 加载消息记录
-  const loadMessages = useCallback(async () => {
+  // 加载最近消息（旧连接最后10条）
+  const loadRecentMessages = useCallback(async () => {
     if (!sessionId) return
 
     try {
-      const response = await messageService.getList(sessionId, { page_size: 100 })
+      const response = await messageService.getRecentByConfig(sessionId, 10)
       if (response.code === 200 && response.data) {
-        const items = response.data.items.reverse()
-        setMessages(items)
+        setMessages(response.data)
 
         let send = 0
         let receive = 0
-        items.forEach((msg) => {
+        response.data.forEach((msg) => {
           if (msg.direction === 'send') send++
           else if (msg.direction === 'receive') receive++
         })
@@ -104,7 +104,7 @@ export function useSessionDetail({ sessionId }: UseSessionDetailOptions): UseSes
         setReceiveCount(receive)
       }
     } catch (err) {
-      console.error('加载消息记录失败:', err)
+      console.error('加载最近消息失败:', err)
     }
   }, [sessionId])
 
@@ -118,8 +118,9 @@ export function useSessionDetail({ sessionId }: UseSessionDetailOptions): UseSes
 
       const newMessage: SessionMessage = {
         id: Date.now(),
-        session_id: sessionId,
-        session_name: session.name,
+        connection_id: 0,
+        session_id: `${sessionId}_${now.getTime()}`,
+        config_id: sessionId,
         direction,
         content,
         content_hex: direction !== 'system' ? stringToHex(content) : null,
@@ -235,8 +236,8 @@ export function useSessionDetail({ sessionId }: UseSessionDetailOptions): UseSes
   // 初始化
   useEffect(() => {
     loadSession()
-    loadMessages()
-  }, [loadSession, loadMessages])
+    loadRecentMessages()
+  }, [loadSession, loadRecentMessages])
 
   // WebSocket 连接和订阅
   useEffect(() => {
@@ -260,8 +261,9 @@ export function useSessionDetail({ sessionId }: UseSessionDetailOptions): UseSes
       console.log('[SessionDetail] 收到通信消息:', data.direction, data.content.substring(0, 50))
       const newMessage: SessionMessage = {
         id: Date.now(),
-        session_id: data.session_id,
-        session_name: session?.name || '',
+        connection_id: 0,
+        session_id: String(data.session_id),
+        config_id: sessionId,
         direction: data.direction,
         content: data.content,
         content_hex: data.content_hex || null,
