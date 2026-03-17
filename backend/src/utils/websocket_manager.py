@@ -123,11 +123,16 @@ class ConnectionManager:
     async def broadcast_to_session(self, session_id: int, message: Dict[str, Any]):
         """广播消息给订阅指定会话的连接"""
         if session_id not in self.session_connections:
+            log.warning(f"没有订阅会话 {session_id} 的连接，跳过推送")
             return
 
-        for connection in self.session_connections[session_id]:
+        connections = self.session_connections[session_id]
+        log.info(f"广播消息到会话 {session_id}，订阅连接数: {len(connections)}")
+
+        for connection in connections:
             try:
                 await connection.send_json(message)
+                log.info(f"消息已推送到 WebSocket 连接")
             except Exception as e:
                 log.error(f"发送会话消息失败: {e}")
 

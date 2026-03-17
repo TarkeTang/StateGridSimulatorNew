@@ -12,8 +12,7 @@ import json
 from datetime import datetime
 from typing import Any, Callable, Dict, List, Optional, Protocol
 
-from sqlalchemy.ext.asyncio import AsyncSession
-
+from src.db.session import AsyncSessionLocal
 from src.repositories.message_repository import MessageRepository
 from src.schemas.session import SessionMessageCreate
 from src.utils.logger import get_logger
@@ -46,12 +45,6 @@ class MessageHandler:
         self.processors: List[MessageProcessor] = []
         # 会话信息缓存
         self._session_cache: Dict[int, Dict[str, Any]] = {}
-        # 数据库会话工厂
-        self._db_session_factory: Optional[Callable] = None
-
-    def set_db_session_factory(self, factory: Callable):
-        """设置数据库会话工厂"""
-        self._db_session_factory = factory
 
     def add_processor(self, processor: MessageProcessor):
         """添加消息处理器"""
@@ -122,9 +115,9 @@ class MessageHandler:
 
         # 保存到数据库
         message_record = None
-        if save_to_db and self._db_session_factory:
+        if save_to_db:
             try:
-                async with self._db_session_factory() as db:
+                async with AsyncSessionLocal() as db:
                     repo = MessageRepository(db)
                     message_record = await repo.create(
                         SessionMessageCreate(
@@ -142,6 +135,7 @@ class MessageHandler:
                 log.error(f"保存发送消息失败: {e}")
 
         # 推送到 WebSocket
+        log.info(f"推送发送消息到WebSocket: session_id={session_id}, content={processed_content[:50]}...")
         await push_communication_message(
             session_id=session_id,
             direction="send",
@@ -190,9 +184,9 @@ class MessageHandler:
 
         # 保存到数据库
         message_record = None
-        if save_to_db and self._db_session_factory:
+        if save_to_db:
             try:
-                async with self._db_session_factory() as db:
+                async with AsyncSessionLocal() as db:
                     repo = MessageRepository(db)
                     message_record = await repo.create(
                         SessionMessageCreate(
@@ -210,6 +204,7 @@ class MessageHandler:
                 log.error(f"保存接收消息失败: {e}")
 
         # 推送到 WebSocket
+        log.info(f"推送接收消息到WebSocket: session_id={session_id}, content={processed_content[:50]}...")
         await push_communication_message(
             session_id=session_id,
             direction="receive",
@@ -247,9 +242,9 @@ class MessageHandler:
 
         # 保存到数据库
         message_record = None
-        if save_to_db and self._db_session_factory:
+        if save_to_db:
             try:
-                async with self._db_session_factory() as db:
+                async with AsyncSessionLocal() as db:
                     repo = MessageRepository(db)
                     message_record = await repo.create(
                         SessionMessageCreate(
@@ -266,6 +261,7 @@ class MessageHandler:
                 log.error(f"保存系统消息失败: {e}")
 
         # 推送到 WebSocket
+        log.info(f"推送系统消息到WebSocket: session_id={session_id}, content={content[:50]}...")
         await push_communication_message(
             session_id=session_id,
             direction="system",
