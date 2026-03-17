@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import (
     async_sessionmaker,
     create_async_engine,
 )
-from sqlalchemy.pool import NullPool
+from sqlalchemy.pool import NullPool, StaticPool
 
 from src.core.config import settings
 from src.utils.logger import get_logger
@@ -27,12 +27,13 @@ if is_sqlite:
     # 确保 SQLite 数据目录存在
     sqlite_path = Path(settings.database.sqlite_file)
     sqlite_path.parent.mkdir(parents=True, exist_ok=True)
-    
-    # SQLite 引擎配置
+
+    # SQLite 引擎配置 - 使用 StaticPool 避免锁定问题
     engine = create_async_engine(
         settings.database.async_url,
         echo=settings.debug,
-        poolclass=NullPool,  # SQLite 必须使用 NullPool
+        poolclass=StaticPool,  # SQLite 使用单一连接池
+        connect_args={"check_same_thread": False},
     )
 else:
     # PostgreSQL/MySQL 引擎配置

@@ -77,20 +77,24 @@ class TcpConnection:
         try:
             log.info(f"正在连接 {self.host}:{self.port}...")
 
-            # 创建连接会话记录
-            async with AsyncSessionLocal() as db:
-                repo = ConnectionSessionRepository(db)
-                connection = await repo.create(ConnectionSessionCreate(config_id=self.config_id))
-                await db.commit()
-                self.connection_id = connection.id
-                self.session_id = connection.session_id
-                log.info(f"创建连接会话记录: connection_id={self.connection_id}, session_id={self.session_id}")
-
-            # 建立 TCP 连接
+            # 先建立 TCP 连接
             self.reader, self.writer = await asyncio.wait_for(
                 asyncio.open_connection(self.host, self.port),
                 timeout=10.0,
             )
+
+            # TCP 连接成功后，创建连接会话记录
+            try:
+                async with AsyncSessionLocal() as db:
+                    repo = ConnectionSessionRepository(db)
+                    connection = await repo.create(ConnectionSessionCreate(config_id=self.config_id))
+                    await db.commit()
+                    self.connection_id = connection.id
+                    self.session_id = connection.session_id
+                    log.info(f"创建连接会话记录: connection_id={self.connection_id}, session_id={self.session_id}")
+            except Exception as db_error:
+                log.error(f"创建连接记录失败: {db_error}")
+                # 即使数据库操作失败，TCP 连接已建立，继续处理
 
             self.status = "connected"
             self.reconnect_count = 0
@@ -98,11 +102,12 @@ class TcpConnection:
             log.info(f"TCP 连接成功: {self.host}:{self.port}")
 
             # 注册会话到消息处理器
-            message_handler.register_session(
-                session_id=self.connection_id,
-                session_name=self.session_name,
-                protocol_type=self.protocol_type,
-            )
+            if self.connection_id:
+                message_handler.register_session(
+                    session_id=self.connection_id,
+                    session_name=self.session_name,
+                    protocol_type=self.protocol_type,
+                )
 
             # 启动接收任务
             self.receive_task = asyncio.create_task(self._receive_loop())
@@ -113,7 +118,6 @@ class TcpConnection:
             error_msg = f"连接超时: {self.host}:{self.port}"
             log.error(error_msg)
             self.status = "error"
-            await self._update_connection_status("error", error_msg)
             self._notify_status_change("error", error_msg)
             return False
 
@@ -121,7 +125,6 @@ class TcpConnection:
             error_msg = f"连接失败: {e.strerror or str(e)}"
             log.error(f"TCP 连接失败: {self.host}:{self.port}, 错误: {e}")
             self.status = "error"
-            await self._update_connection_status("error", error_msg)
             self._notify_status_change("error", error_msg)
             return False
 
@@ -129,7 +132,6 @@ class TcpConnection:
             error_msg = f"连接异常: {str(e)}"
             log.error(f"TCP 连接异常: {self.host}:{self.port}, 错误: {e}")
             self.status = "error"
-            await self._update_connection_status("error", error_msg)
             self._notify_status_change("error", error_msg)
             return False
 
