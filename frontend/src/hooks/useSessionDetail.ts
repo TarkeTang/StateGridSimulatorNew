@@ -258,7 +258,11 @@ export function useSessionDetail({ sessionId }: UseSessionDetailOptions): UseSes
 
     // 监听通信消息
     const unsubComm = wsClient.onCommunication(sessionId, (data: CommunicationData) => {
-      console.log('[SessionDetail] 收到通信消息:', data.direction, data.content.substring(0, 50))
+      console.log('[SessionDetail] 收到通信消息:', data.direction, data.content.substring(0, 50), 'is_auto_send:', data.is_auto_send)
+      
+      // 构建 extra_data
+      const extraData = data.is_auto_send ? JSON.stringify({ is_auto_send: true }) : null
+      
       const newMessage: SessionMessage = {
         id: Date.now(),
         connection_id: 0,
@@ -277,7 +281,7 @@ export function useSessionDetail({ sessionId }: UseSessionDetailOptions): UseSes
         status: 'processed',
         error_message: null,
         parsed_data: null,
-        extra_data: null,
+        extra_data: extraData,
         timestamp: data.timestamp,
         created_at: data.timestamp,
       }

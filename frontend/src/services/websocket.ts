@@ -29,6 +29,7 @@ export interface CommunicationData {
   content: string
   content_hex?: string
   timestamp: string
+  is_auto_send?: boolean
 }
 
 export interface NotificationData {
