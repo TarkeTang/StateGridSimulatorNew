@@ -231,6 +231,8 @@ const SessionManagePage = () => {
         return { color: 'text-signal-green', bg: 'bg-signal-green/10', label: '已连接' }
       case 'connecting':
         return { color: 'text-signal-yellow', bg: 'bg-signal-yellow/10', label: '连接中' }
+      case 'reconnecting':
+        return { color: 'text-signal-orange', bg: 'bg-signal-orange/10', label: '重连中' }
       case 'error':
         return { color: 'text-signal-red', bg: 'bg-signal-red/10', label: '连接错误' }
       default:

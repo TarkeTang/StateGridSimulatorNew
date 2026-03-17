@@ -308,9 +308,12 @@ export function useSessionDetail({ sessionId }: UseSessionDetailOptions): UseSes
       } else if (data.status === 'disconnected' || data.status === 'error') {
         setIsConnected(false)
         setConnectTime(null)
+      } else if (data.status === 'reconnecting') {
+        // 重连中，保持当前状态，但显示提示
+        setIsConnected(false)
       }
       if (session) {
-        setSession({ ...session, status: data.status })
+        setSession({ ...session, status: data.status, last_error: data.error_message || null })
       }
     })
 

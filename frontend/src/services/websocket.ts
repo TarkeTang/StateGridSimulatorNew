@@ -18,7 +18,7 @@ export interface WSMessage {
 
 export interface SessionStatusData {
   session_id: number
-  status: 'disconnected' | 'connected' | 'connecting' | 'error'
+  status: 'disconnected' | 'connected' | 'connecting' | 'reconnecting' | 'error'
   error_message?: string
   timestamp: string
 }

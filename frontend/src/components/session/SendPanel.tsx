@@ -3,14 +3,16 @@
  */
 
 import { Panel, Button } from '@/components/ui'
-import { Send, Timer } from 'lucide-react'
+import { Send, Timer, AlertCircle } from 'lucide-react'
 import { formatXml, formatJson } from '@/utils/formatters'
+import { SessionConfig } from '@/services/session'
 
 interface SendPanelProps {
   sendData: string
   sendMode: 'text' | 'xml' | 'json'
   isConnected: boolean
   autoSendActive: boolean
+  session?: SessionConfig
   onSendDataChange: (data: string) => void
   onSendModeChange: (mode: 'text' | 'xml' | 'json') => void
   onSend: () => void
@@ -23,6 +25,7 @@ export function SendPanel({
   sendMode,
   isConnected,
   autoSendActive,
+  session,
   onSendDataChange,
   onSendModeChange,
   onSend,
@@ -37,6 +40,11 @@ export function SendPanel({
     }
     return content
   }
+
+  // 检查是否可以发送
+  const canSend = isConnected && session?.status !== 'reconnecting'
+  const isReconnecting = session?.status === 'reconnecting'
+  const statusMessage = session?.last_error || (isReconnecting ? '正在尝试自动重连...' : '')
 
   return (
     <Panel title="发送配置" className="h-full is-flex">
@@ -79,7 +87,17 @@ export function SendPanel({
         </div>
 
         {/* 发送内容 */}
-        <div className="flex-1 min-w-0 h-full">
+        <div className="flex-1 min-w-0 h-full flex flex-col">
+          {statusMessage && (
+            <div className={`flex items-center gap-2 mb-2 px-3 py-1.5 rounded text-sm ${
+              isReconnecting 
+                ? 'bg-signal-orange/10 text-signal-orange' 
+                : 'bg-signal-red/10 text-signal-red'
+            }`}>
+              <AlertCircle className="w-4 h-4" />
+              {statusMessage}
+            </div>
+          )}
           <textarea
             value={getDisplayContent(sendData)}
             onChange={(e) => onSendDataChange(e.target.value)}
@@ -88,9 +106,9 @@ export function SendPanel({
                 onSend()
               }
             }}
-            placeholder="输入发送数据... (Ctrl+Enter发送)"
-            className="input-field h-full resize-none font-mono text-sm w-full"
-            disabled={!isConnected}
+            placeholder={canSend ? "输入发送数据... (Ctrl+Enter发送)" : "请先连接会话..."}
+            className="input-field flex-1 resize-none font-mono text-sm w-full"
+            disabled={!canSend}
           />
         </div>
 
@@ -99,7 +117,8 @@ export function SendPanel({
           <Button
             variant="primary"
             onClick={onSend}
-            disabled={!isConnected || !sendData.trim()}
+            disabled={!canSend || !sendData.trim()}
+            title={!canSend ? '请先连接会话' : undefined}
           >
             <Send className="w-4 h-4" />
             发送
@@ -113,7 +132,8 @@ export function SendPanel({
                 onOpenAutoSend()
               }
             }}
-            disabled={!isConnected}
+            disabled={!canSend}
+            title={!canSend ? '请先连接会话' : undefined}
           >
             <Timer className="w-4 h-4" />
             {autoSendActive ? '停止' : '自动发送'}

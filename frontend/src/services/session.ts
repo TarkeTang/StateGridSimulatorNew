@@ -45,7 +45,7 @@ export interface SessionConfig {
   send_buffer_size: number
   encoding: string
   line_ending: string
-  status: 'disconnected' | 'connected' | 'connecting' | 'error'
+  status: 'disconnected' | 'connected' | 'connecting' | 'reconnecting' | 'error'
   last_error: string | null
   last_connected_at: string | null
   extra_config: string | null

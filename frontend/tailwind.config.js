@@ -27,6 +27,7 @@ export default {
           red: '#ff3366',
           yellow: '#ffcc00',
           blue: '#00ccff',
+          orange: '#ff9900',
         },
         // 面板色
         panel: {

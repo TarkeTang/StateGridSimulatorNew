@@ -77,6 +77,13 @@ class StateGrid57TcpConnection:
         self.buffer_size: int = 4096
         self.protocol_type: str = "STATEGRID57"
 
+        # 自动重连配置
+        self.auto_reconnect: bool = True
+        self.reconnect_interval: int = 5000  # 毫秒
+        self.max_reconnect_times: int = 3
+        self.reconnect_count: int = 0
+        self.reconnect_task: Optional[asyncio.Task] = None
+
     async def connect(self) -> bool:
         """建立 TCP 连接"""
         if self.status == "connected":
@@ -113,6 +120,12 @@ class StateGrid57TcpConnection:
                 on_send=self._send_raw,
                 on_message=self._on_protocol_message,
             )
+
+            # 连接成功，重置重连计数器
+            self.reconnect_count = 0
+            if self.reconnect_task:
+                self.reconnect_task.cancel()
+                self.reconnect_task = None
 
             self.status = "connected"
             self._notify_status_change("connected")
@@ -158,6 +171,18 @@ class StateGrid57TcpConnection:
 
     async def disconnect(self) -> bool:
         """断开 TCP 连接"""
+        # 禁用自动重连
+        self.auto_reconnect = False
+
+        # 取消重连任务
+        if self.reconnect_task:
+            self.reconnect_task.cancel()
+            try:
+                await self.reconnect_task
+            except asyncio.CancelledError:
+                pass
+            self.reconnect_task = None
+
         if self.status != "connected":
             self.status = "disconnected"
             return True
@@ -216,6 +241,15 @@ class StateGrid57TcpConnection:
         Returns:
             发送是否成功
         """
+        # 检查连接状态
+        if self.status == "disconnected":
+            log.warning(f"会话 {self.session_name} 已断开，无法发送数据")
+            return False
+
+        if self.status == "reconnecting":
+            log.warning(f"会话 {self.session_name} 正在重连中，无法发送数据")
+            return False
+
         if self.status != "connected" or not self.writer:
             log.warning(f"会话 {self.session_name} 未连接，无法发送数据")
             return False
@@ -427,15 +461,73 @@ class StateGrid57TcpConnection:
         if self._protocol_handler:
             await self._protocol_handler.stop_heartbeat()
 
-        # 更新连接记录
-        await self._update_connection_status("disconnected")
+        # 取消接收任务
+        if self.receive_task:
+            self.receive_task.cancel()
+            try:
+                await self.receive_task
+            except asyncio.CancelledError:
+                pass
+            self.receive_task = None
+
+        # 关闭写入器
+        if self.writer:
+            try:
+                self.writer.close()
+                await self.writer.wait_closed()
+            except Exception:
+                pass
+            self.writer = None
+        self.reader = None
 
         # 注销会话
         if self.connection_id:
             message_handler.unregister_session(self.connection_id)
 
+        # 尝试自动重连
+        if self.auto_reconnect and self.reconnect_count < self.max_reconnect_times:
+            self.status = "reconnecting"
+            self._notify_status_change("reconnecting", f"连接断开，正在尝试自动重连...")
+            self.reconnect_task = asyncio.create_task(self._auto_reconnect())
+        else:
+            # 更新连接记录状态
+            await self._update_connection_status("disconnected", "连接已断开")
+            self.status = "disconnected"
+            self._notify_status_change("disconnected", "连接已断开")
+
+    async def _auto_reconnect(self):
+        """自动重连"""
+        while (
+            self.auto_reconnect
+            and self.reconnect_count < self.max_reconnect_times
+            and self.status != "connected"
+        ):
+            self.reconnect_count += 1
+            log.info(
+                f"尝试自动重连 ({self.reconnect_count}/{self.max_reconnect_times}): "
+                f"{self.host}:{self.port}"
+            )
+
+            # 更新状态
+            self.status = "reconnecting"
+            self._notify_status_change(
+                "reconnecting",
+                f"连接断开，正在重连 ({self.reconnect_count}/{self.max_reconnect_times})...",
+            )
+
+            await asyncio.sleep(self.reconnect_interval / 1000)
+
+            success = await self.connect()
+            if success:
+                log.info(f"自动重连成功: {self.host}:{self.port}")
+                self.reconnect_count = 0
+                return
+
+        # 重连失败
+        log.warning(f"自动重连失败，已达最大重试次数: {self.host}:{self.port}")
         self.status = "disconnected"
-        self._notify_status_change("disconnected", "连接已断开")
+        await self._update_connection_status("disconnected", "连接已断开，自动重连失败")
+        self._notify_status_change("disconnected", "连接已断开，自动重连失败")
 
     def _on_protocol_message(self, message: StateGrid57Message):
         """协议消息回调"""
@@ -496,13 +588,10 @@ class StateGrid57TcpConnection:
         try:
             async with AsyncSessionLocal() as db:
                 repo = ConnectionSessionRepository(db)
-                await repo.update(
+                await repo.update_status(
                     self.connection_id,
-                    {
-                        "status": status,
-                        "disconnected_at": datetime.now() if status == "disconnected" else None,
-                        "error_message": error_message,
-                    },
+                    status=status,
+                    error_message=error_message,
                 )
                 await db.commit()
         except Exception as e:
