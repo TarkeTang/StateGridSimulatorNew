@@ -304,6 +304,7 @@ function SessionDetailPage() {
             sendMode={sendMode}
             isConnected={isConnected}
             autoSendActive={autoSendActive}
+            session={session}
             onSendDataChange={setSendData}
             onSendModeChange={setSendMode}
             onSend={onSend}

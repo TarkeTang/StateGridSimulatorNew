@@ -6,11 +6,13 @@
 
 from __future__ import annotations
 
+import json
 from typing import List, Optional
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models.session import SessionConfig
+from src.protocols.stategrid57 import StateGrid57Config, StateGrid57TcpConnection
 from src.repositories.session_repository import SessionConfigRepository
 from src.schemas.session import (
     SessionConfigCreate,
@@ -123,21 +125,13 @@ class SessionConfigService:
         await self.repository.update_status(config_id, "connecting")
 
         try:
-            # 创建 TCP 连接
-            conn = await tcp_manager.create_connection(
-                config_id=config_id,
-                session_name=config.name,
-                host=config.host,
-                port=config.port,
-                auto_reconnect=config.auto_reconnect,
-                reconnect_interval=config.reconnect_interval,
-                max_reconnect_times=config.max_reconnect_times,
-                buffer_size=config.buffer_size,
-                encoding=config.encoding,
-            )
-
-            # 执行连接
-            success = await conn.connect()
+            # 根据协议类型创建连接
+            if config.protocol_type in ("STATEGRID57", "57StateGrid"):
+                # 国网57号文协议
+                success = await self._connect_stategrid57(config)
+            else:
+                # 普通 TCP 连接
+                success = await self._connect_tcp(config)
 
             if success:
                 # 更新数据库状态
@@ -156,6 +150,54 @@ class SessionConfigService:
             # 更新数据库状态为错误
             await self.repository.update_status(config_id, "error", str(e))
             raise
+
+    async def _connect_tcp(self, config: SessionConfig) -> bool:
+        """创建普通 TCP 连接"""
+        conn = await tcp_manager.create_connection(
+            config_id=config.id,
+            session_name=config.name,
+            host=config.host,
+            port=config.port,
+            auto_reconnect=config.auto_reconnect,
+            reconnect_interval=config.reconnect_interval,
+            max_reconnect_times=config.max_reconnect_times,
+            buffer_size=config.buffer_size,
+            encoding=config.encoding,
+        )
+        return await conn.connect()
+
+    async def _connect_stategrid57(self, config: SessionConfig) -> bool:
+        """创建国网57号文协议连接"""
+        # 解析协议配置
+        protocol_config = self._parse_stategrid57_config(config.extra_config)
+
+        # 创建国网57号文连接
+        conn = StateGrid57TcpConnection(
+            config_id=config.id,
+            session_name=config.name,
+            host=config.host,
+            port=config.port,
+            protocol_config=protocol_config,
+        )
+
+        # 注册到 TCP 管理器
+        tcp_manager.connections[config.id] = conn
+
+        return await conn.connect()
+
+    def _parse_stategrid57_config(self, extra_config: Optional[str]) -> StateGrid57Config:
+        """解析国网57号文协议配置"""
+        if not extra_config:
+            return StateGrid57Config()
+
+        try:
+            extra = json.loads(extra_config)
+            if "stategrid57_config" in extra:
+                return StateGrid57Config.from_dict(extra["stategrid57_config"])
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+        return StateGrid57Config()
 
     async def disconnect_session(self, config_id: int) -> SessionConfigResponse:
         """断开会话"""

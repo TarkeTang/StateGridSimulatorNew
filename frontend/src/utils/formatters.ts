@@ -94,6 +94,8 @@ export const getStatusStyle = (status: string): { color: string; label: string }
       return { color: 'text-signal-green', label: '已连接' }
     case 'connecting':
       return { color: 'text-signal-yellow', label: '连接中' }
+    case 'reconnecting':
+      return { color: 'text-signal-orange', label: '重连中' }
     case 'error':
       return { color: 'text-signal-red', label: '连接错误' }
     default:

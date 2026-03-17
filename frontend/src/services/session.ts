@@ -6,6 +6,22 @@ import api from './api'
 
 // ==================== 类型定义 ====================
 
+export interface StateGrid57Config {
+  send_code: string
+  receive_code: string
+  device_mode: string
+  node_type: string
+  heart_beat_interval: number
+  auto_heartbeat: boolean
+  patroldevice_run_interval: number
+  nest_run_interval: number
+  weather_interval: number
+  env_interval: number
+  run_params_interval: number
+  auto_register: boolean
+  auto_response: boolean
+}
+
 export interface SessionConfig {
   id: number
   name: string
@@ -29,10 +45,11 @@ export interface SessionConfig {
   send_buffer_size: number
   encoding: string
   line_ending: string
-  status: 'disconnected' | 'connected' | 'connecting' | 'error'
+  status: 'disconnected' | 'connected' | 'connecting' | 'reconnecting' | 'error'
   last_error: string | null
   last_connected_at: string | null
   extra_config: string | null
+  stategrid57_config: StateGrid57Config | null
   group_name: string | null
   tags: string | null
   sort: number
@@ -71,6 +88,7 @@ export interface SessionConfigCreate {
   encoding?: string
   line_ending?: string
   extra_config?: string
+  stategrid57_config?: StateGrid57Config
   group_name?: string
   tags?: string
   sort?: number

@@ -12,6 +12,37 @@ from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field
 
 
+# ==================== 国网57号文协议配置 Schema ====================
+
+class StateGrid57ConfigSchema(BaseModel):
+    """国网57号文协议配置"""
+
+    # 身份标识
+    send_code: str = Field(default="Device01", description="发送身份标识")
+    receive_code: str = Field(default="Server01", description="接收身份标识")
+
+    # 设备模式
+    device_mode: str = Field(default="Edge", description="设备模式: Superior/Area/Edge/Robot/Drone/Algo")
+    node_type: str = Field(default="PatrolDevice", description="节点类型: PatrolHost/PatrolDevice/CloudHost")
+
+    # 心跳配置
+    heart_beat_interval: int = Field(default=100, ge=10, le=3600, description="心跳间隔(秒)")
+    auto_heartbeat: bool = Field(default=True, description="是否自动发送心跳")
+
+    # 数据上报间隔配置
+    patroldevice_run_interval: int = Field(default=300, ge=10, le=3600, description="巡视装置运行数据间隔(秒)")
+    nest_run_interval: int = Field(default=300, ge=10, le=3600, description="无人机机巢运行数据间隔(秒)")
+    weather_interval: int = Field(default=300, ge=10, le=3600, description="环境数据间隔(秒)")
+    env_interval: int = Field(default=300, ge=10, le=3600, description="环境数据上报间隔(秒)")
+    run_params_interval: int = Field(default=300, ge=10, le=3600, description="运行参数间隔(秒)")
+
+    # 自动注册
+    auto_register: bool = Field(default=True, description="连接后是否自动发送注册指令")
+
+    # 响应处理
+    auto_response: bool = Field(default=True, description="是否自动响应请求消息")
+
+
 # ==================== 会话配置 Schema ====================
 
 class SessionConfigBase(BaseModel):
@@ -21,7 +52,7 @@ class SessionConfigBase(BaseModel):
     description: Optional[str] = Field(None, description="会话描述")
 
     # 协议配置
-    protocol_type: str = Field(default="TCP", max_length=20, description="协议类型")
+    protocol_type: str = Field(default="TCP", max_length=20, description="协议类型: TCP/UDP/WebSocket/Serial/Modbus/STATEGRID57")
     connection_mode: str = Field(default="client", max_length=20, description="连接模式")
 
     # 网络配置
@@ -57,6 +88,9 @@ class SessionConfigBase(BaseModel):
     tags: Optional[str] = Field(None, max_length=200, description="标签")
     sort: int = Field(default=0, description="排序")
     is_enabled: bool = Field(default=True, description="是否启用")
+
+    # 国网57号文协议配置
+    stategrid57_config: Optional[StateGrid57ConfigSchema] = Field(None, description="国网57号文协议配置")
 
 
 class SessionConfigCreate(SessionConfigBase):
@@ -94,6 +128,7 @@ class SessionConfigUpdate(BaseModel):
     tags: Optional[str] = Field(None, max_length=200, description="标签")
     sort: Optional[int] = Field(None, description="排序")
     is_enabled: Optional[bool] = Field(None, description="是否启用")
+    stategrid57_config: Optional[StateGrid57ConfigSchema] = Field(None, description="国网57号文协议配置")
 
 
 class SessionConfigResponse(SessionConfigBase):

@@ -302,16 +302,25 @@ export function useSessionDetail({ sessionId }: UseSessionDetailOptions): UseSes
 
     // 监听会话状态
     const unsubStatus = wsClient.onSessionStatus(sessionId, (data: SessionStatusData) => {
+      console.log('[SessionDetail] 收到会话状态更新:', data)
       if (data.status === 'connected') {
         setIsConnected(true)
         setConnectTime(new Date().toLocaleTimeString('zh-CN', { hour12: false }))
       } else if (data.status === 'disconnected' || data.status === 'error') {
         setIsConnected(false)
         setConnectTime(null)
+      } else if (data.status === 'reconnecting') {
+        // 重连中，保持当前状态，但显示提示
+        setIsConnected(false)
       }
-      if (session) {
-        setSession({ ...session, status: data.status })
-      }
+      // 使用函数式更新，不依赖 session 变量
+      setSession((prevSession) => {
+        if (prevSession) {
+          console.log('[SessionDetail] 更新会话状态:', data.status)
+          return { ...prevSession, status: data.status, last_error: data.error_message || null }
+        }
+        return prevSession
+      })
     })
 
     return () => {

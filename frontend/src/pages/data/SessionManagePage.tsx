@@ -19,18 +19,20 @@ import {
 } from 'lucide-react'
 import { sessionService, type SessionConfig, type SessionConfigCreate, type SessionConfigUpdate } from '@/services/session'
 import { dictService, getDictName, type DictData } from '@/services/dict'
+import { StateGrid57ConfigForm, defaultStateGrid57Config } from '@/components/session/StateGrid57ConfigForm'
 
 const initialFormData: SessionConfigCreate = {
   name: '',
   host: '127.0.0.1',
   port: 8080,
-  protocol_type: '57StateGrid',
+  protocol_type: 'TCP',
   connection_mode: 'client',
   description: '',
   auto_reconnect: false,
   reconnect_interval: 5000,
   timeout: 30000,
   is_enabled: true,
+  stategrid57_config: defaultStateGrid57Config,
 }
 
 const SessionManagePage = () => {
@@ -120,6 +122,7 @@ const SessionManagePage = () => {
       reconnect_interval: session.reconnect_interval,
       timeout: session.timeout,
       is_enabled: session.is_enabled,
+      stategrid57_config: session.stategrid57_config || defaultStateGrid57Config,
     })
     setShowModal(true)
   }
@@ -228,6 +231,8 @@ const SessionManagePage = () => {
         return { color: 'text-signal-green', bg: 'bg-signal-green/10', label: '已连接' }
       case 'connecting':
         return { color: 'text-signal-yellow', bg: 'bg-signal-yellow/10', label: '连接中' }
+      case 'reconnecting':
+        return { color: 'text-signal-orange', bg: 'bg-signal-orange/10', label: '重连中' }
       case 'error':
         return { color: 'text-signal-red', bg: 'bg-signal-red/10', label: '连接错误' }
       default:
@@ -576,6 +581,14 @@ const SessionManagePage = () => {
                   className="input-field h-20 resize-none"
                 />
               </div>
+
+              {/* 国网57号文协议配置 */}
+              {formData.protocol_type === 'STATEGRID57' && formData.stategrid57_config && (
+                <StateGrid57ConfigForm
+                  value={formData.stategrid57_config}
+                  onChange={(config) => setFormData({ ...formData, stategrid57_config: config })}
+                />
+              )}
             </div>
 
             <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-panel-border">

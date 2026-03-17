@@ -172,6 +172,12 @@ body {
     box-shadow: 0 0 8px var(--signal-yellow);
   }
 
+  .status-indicator.reconnecting {
+    background: #ff9900;
+    box-shadow: 0 0 8px #ff9900;
+    animation: pulse 1s infinite;
+  }
+
   /* 数据标签 */
   .data-label {
     @apply text-xs text-gray-400 uppercase tracking-wider;
