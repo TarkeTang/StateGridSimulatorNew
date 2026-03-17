@@ -14,12 +14,15 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import TYPE_CHECKING, Any, Dict, Optional
 
 from sqlalchemy import Boolean, DateTime, Integer, String, Text, func
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.models.base import Base
+
+if TYPE_CHECKING:
+    from src.models.connection import ConnectionSession
 
 
 class SessionConfig(Base):
@@ -98,6 +101,14 @@ class SessionConfig(Base):
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), comment="更新时间"
+    )
+
+    # 关系
+    connections: Mapped[list["ConnectionSession"]] = relationship(
+        "ConnectionSession",
+        back_populates="config",
+        cascade="all, delete-orphan",
+        order_by="desc(ConnectionSession.connected_at)",
     )
 
     def to_dict(self) -> Dict[str, Any]:

@@ -78,7 +78,9 @@ class MessageHandler:
 
     async def handle_send(
         self,
-        session_id: int,
+        connection_id: int,
+        session_id: str,
+        config_id: int,
         content: str,
         is_auto_send: bool = False,
         save_to_db: bool = True,
@@ -87,7 +89,9 @@ class MessageHandler:
         处理发送消息
 
         Args:
-            session_id: 会话ID
+            connection_id: 连接会话ID
+            session_id: 会话标识
+            config_id: 会话配置ID
             content: 消息内容
             is_auto_send: 是否为自动发送
             save_to_db: 是否保存到数据库
@@ -95,13 +99,12 @@ class MessageHandler:
         Returns:
             处理结果
         """
-        session_info = self.get_session_info(session_id)
-        session_name = session_info.get("session_name", "") if session_info else ""
+        session_info = self.get_session_info(connection_id)
         protocol_type = session_info.get("protocol_type", "TCP") if session_info else "TCP"
 
         # 处理器链处理
         processed_content = content
-        context = {"session_id": session_id, "direction": "send", "is_auto_send": is_auto_send}
+        context = {"connection_id": connection_id, "direction": "send", "is_auto_send": is_auto_send}
         for processor in self.processors:
             try:
                 processed_content = await processor.process(processed_content, "send", context)
@@ -121,8 +124,9 @@ class MessageHandler:
                     repo = MessageRepository(db)
                     message_record = await repo.create(
                         SessionMessageCreate(
+                            connection_id=connection_id,
                             session_id=session_id,
-                            session_name=session_name,
+                            config_id=config_id,
                             direction="send",
                             content=processed_content,
                             protocol_type=protocol_type,
@@ -130,14 +134,14 @@ class MessageHandler:
                         )
                     )
                     await db.commit()
-                    log.info(f"发送消息已保存: session_id={session_id}, length={len(processed_content)}")
+                    log.info(f"发送消息已保存: connection_id={connection_id}, length={len(processed_content)}")
             except Exception as e:
                 log.error(f"保存发送消息失败: {e}")
 
         # 推送到 WebSocket
         log.info(f"推送发送消息到WebSocket: session_id={session_id}, content={processed_content[:50]}...")
         await push_communication_message(
-            session_id=session_id,
+            session_id=config_id,  # 使用 config_id 作为 WebSocket 订阅的 session_id
             direction="send",
             content=processed_content,
             extra_data=extra_data,
@@ -152,7 +156,9 @@ class MessageHandler:
 
     async def handle_receive(
         self,
-        session_id: int,
+        connection_id: int,
+        session_id: str,
+        config_id: int,
         content: str,
         content_hex: Optional[str] = None,
         save_to_db: bool = True,
@@ -161,7 +167,9 @@ class MessageHandler:
         处理接收消息
 
         Args:
-            session_id: 会话ID
+            connection_id: 连接会话ID
+            session_id: 会话标识
+            config_id: 会话配置ID
             content: 消息内容
             content_hex: 十六进制内容
             save_to_db: 是否保存到数据库
@@ -169,13 +177,12 @@ class MessageHandler:
         Returns:
             处理结果
         """
-        session_info = self.get_session_info(session_id)
-        session_name = session_info.get("session_name", "") if session_info else ""
+        session_info = self.get_session_info(connection_id)
         protocol_type = session_info.get("protocol_type", "TCP") if session_info else "TCP"
 
         # 处理器链处理
         processed_content = content
-        context = {"session_id": session_id, "direction": "receive"}
+        context = {"connection_id": connection_id, "direction": "receive"}
         for processor in self.processors:
             try:
                 processed_content = await processor.process(processed_content, "receive", context)
@@ -190,8 +197,9 @@ class MessageHandler:
                     repo = MessageRepository(db)
                     message_record = await repo.create(
                         SessionMessageCreate(
+                            connection_id=connection_id,
                             session_id=session_id,
-                            session_name=session_name,
+                            config_id=config_id,
                             direction="receive",
                             content=processed_content,
                             content_hex=content_hex,
@@ -199,14 +207,14 @@ class MessageHandler:
                         )
                     )
                     await db.commit()
-                    log.info(f"接收消息已保存: session_id={session_id}, length={len(processed_content)}")
+                    log.info(f"接收消息已保存: connection_id={connection_id}, length={len(processed_content)}")
             except Exception as e:
                 log.error(f"保存接收消息失败: {e}")
 
         # 推送到 WebSocket
         log.info(f"推送接收消息到WebSocket: session_id={session_id}, content={processed_content[:50]}...")
         await push_communication_message(
-            session_id=session_id,
+            session_id=config_id,  # 使用 config_id 作为 WebSocket 订阅的 session_id
             direction="receive",
             content=processed_content,
             content_hex=content_hex,
@@ -221,7 +229,9 @@ class MessageHandler:
 
     async def handle_system(
         self,
-        session_id: int,
+        connection_id: int,
+        session_id: str,
+        config_id: int,
         content: str,
         save_to_db: bool = True,
     ) -> Dict[str, Any]:
@@ -229,15 +239,16 @@ class MessageHandler:
         处理系统消息
 
         Args:
-            session_id: 会话ID
+            connection_id: 连接会话ID
+            session_id: 会话标识
+            config_id: 会话配置ID
             content: 消息内容
             save_to_db: 是否保存到数据库
 
         Returns:
             处理结果
         """
-        session_info = self.get_session_info(session_id)
-        session_name = session_info.get("session_name", "") if session_info else ""
+        session_info = self.get_session_info(connection_id)
         protocol_type = session_info.get("protocol_type", "TCP") if session_info else "TCP"
 
         # 保存到数据库
@@ -248,22 +259,23 @@ class MessageHandler:
                     repo = MessageRepository(db)
                     message_record = await repo.create(
                         SessionMessageCreate(
+                            connection_id=connection_id,
                             session_id=session_id,
-                            session_name=session_name,
+                            config_id=config_id,
                             direction="system",
                             content=content,
                             protocol_type=protocol_type,
                         )
                     )
                     await db.commit()
-                    log.info(f"系统消息已保存: session_id={session_id}")
+                    log.info(f"系统消息已保存: connection_id={connection_id}")
             except Exception as e:
                 log.error(f"保存系统消息失败: {e}")
 
         # 推送到 WebSocket
         log.info(f"推送系统消息到WebSocket: session_id={session_id}, content={content[:50]}...")
         await push_communication_message(
-            session_id=session_id,
+            session_id=config_id,  # 使用 config_id 作为 WebSocket 订阅的 session_id
             direction="system",
             content=content,
         )
