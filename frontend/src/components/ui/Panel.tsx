@@ -9,15 +9,17 @@ interface PanelProps {
 }
 
 const Panel = ({ title, children, className, headerAction }: PanelProps) => {
+  const isFlex = className?.includes('is-flex')
+
   return (
-    <div className={clsx('panel', className)}>
+    <div className={clsx('panel', isFlex && 'is-flex', className)}>
       {title && (
-        <div className="panel-header">
+        <div className="panel-header flex-shrink-0">
           <h3 className="panel-title">{title}</h3>
           {headerAction}
         </div>
       )}
-      <div className="panel-content">
+      <div className={clsx('panel-content', isFlex && 'is-flex-content')}>
         {children}
       </div>
     </div>

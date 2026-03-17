@@ -104,6 +104,7 @@ async def init_db() -> None:
     from src.models.dict import DictType, DictData
     from src.models.session import SessionConfig
     from src.models.message import SessionMessage, MessageStatistics
+    from src.models.auto_send import AutoSendConfig
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)

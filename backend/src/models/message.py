@@ -16,7 +16,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Dict, Optional
 
-from sqlalchemy import BigInteger, DateTime, Integer, String, Text, func
+from sqlalchemy import DateTime, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.models.base import Base
@@ -31,7 +31,7 @@ class SessionMessage(Base):
 
     __tablename__ = "sys_session_message"
 
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True, comment="主键ID")
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True, comment="主键ID")
 
     # 关联会话
     session_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True, comment="会话ID")
@@ -122,10 +122,10 @@ class MessageStatistics(Base):
     session_id: Mapped[int] = mapped_column(Integer, nullable=False, unique=True, comment="会话ID")
 
     # 统计数据
-    total_send: Mapped[int] = mapped_column(BigInteger, default=0, comment="发送总数")
-    total_receive: Mapped[int] = mapped_column(BigInteger, default=0, comment="接收总数")
-    total_bytes_send: Mapped[int] = mapped_column(BigInteger, default=0, comment="发送字节总数")
-    total_bytes_receive: Mapped[int] = mapped_column(BigInteger, default=0, comment="接收字节总数")
+    total_send: Mapped[int] = mapped_column(Integer, default=0, comment="发送总数")
+    total_receive: Mapped[int] = mapped_column(Integer, default=0, comment="接收总数")
+    total_bytes_send: Mapped[int] = mapped_column(Integer, default=0, comment="发送字节总数")
+    total_bytes_receive: Mapped[int] = mapped_column(Integer, default=0, comment="接收字节总数")
     total_errors: Mapped[int] = mapped_column(Integer, default=0, comment="错误总数")
 
     # 时间信息
