@@ -14,7 +14,7 @@ import {
   Usb,
   Radio,
   Server,
-  FolderOpen,
+  Variable,
 } from 'lucide-react'
 
 interface NavItem {
@@ -32,7 +32,7 @@ const navItems: NavItem[] = [
     icon: Database,
     children: [
       { path: '/data/session', label: '会话管理', icon: Server },
-      { path: '/data/message', label: '消息记录', icon: FolderOpen },
+      { path: '/data/parameter', label: '参数化', icon: Variable },
     ],
   },
   { path: '/analysis', label: '数据分析', icon: LineChart },
