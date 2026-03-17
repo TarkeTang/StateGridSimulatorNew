@@ -353,6 +353,10 @@ const SessionDetailPage = () => {
           setConnectTime(null)
           stopAutoSend()
           await addMessage('system', '连接已断开')
+          // 更新本地 session 状态
+          if (session) {
+            setSession({ ...session, status: 'disconnected' })
+          }
         } else {
           alert(response.message || '断开失败')
         }
@@ -365,11 +369,14 @@ const SessionDetailPage = () => {
           setIsConnected(true)
           setConnectTime(new Date().toLocaleTimeString('zh-CN', { hour12: false }))
           await addMessage('system', `已连接到 ${session?.host}:${session?.port}`)
+          // 更新本地 session 状态
+          if (session) {
+            setSession({ ...session, status: 'connected' })
+          }
         } else {
           await addMessage('system', `连接失败: ${response.message || '未知错误'}`)
         }
       }
-      loadSession()
     } catch (err: any) {
       setIsConnecting(false)
       await addMessage('system', `操作失败: ${err.message || '网络错误'}`)
