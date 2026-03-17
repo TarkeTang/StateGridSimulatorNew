@@ -3,7 +3,7 @@
  */
 
 import { Panel, Button } from '@/components/ui'
-import { Play, Square, Clock } from 'lucide-react'
+import { Play, Square, Clock, RefreshCw } from 'lucide-react'
 import { getConnectionDuration, getStatusStyle } from '@/utils/formatters'
 import type { SessionConfig } from '@/services/session'
 
@@ -29,6 +29,7 @@ export function ConnectionStatusPanel({
   onConnect,
 }: ConnectionStatusPanelProps) {
   const statusStyle = getStatusStyle(session.status)
+  const isReconnecting = session.status === 'reconnecting'
 
   return (
     <Panel title="连接状态" className="flex-shrink-0">
@@ -36,8 +37,18 @@ export function ConnectionStatusPanel({
         <div className="flex items-center justify-between">
           <span className="text-gray-400 text-sm">状态</span>
           <div className="flex items-center gap-2">
-            <span className={`status-indicator ${isConnected ? 'online' : 'offline'}`} />
-            <span className={`${statusStyle.color} text-sm`}>{statusStyle.label}</span>
+            <span className={`status-indicator ${
+              isConnected ? 'online' : 
+              isReconnecting ? 'reconnecting' : 'offline'
+            }`} />
+            <span className={`${statusStyle.color} text-sm`}>
+              {statusStyle.label}
+              {isReconnecting && session.last_error && (
+                <span className="text-xs ml-1 text-gray-400">
+                  ({session.last_error})
+                </span>
+              )}
+            </span>
           </div>
         </div>
         <div className="flex items-center justify-between">
@@ -58,13 +69,18 @@ export function ConnectionStatusPanel({
         <Button
           variant={isConnected ? 'danger' : 'success'}
           onClick={onConnect}
-          disabled={isConnecting || operating}
+          disabled={isConnecting || operating || isReconnecting}
           className="w-full"
         >
           {isConnecting ? (
             <>
               <Clock className="w-4 h-4 animate-spin" />
               连接中...
+            </>
+          ) : isReconnecting ? (
+            <>
+              <RefreshCw className="w-4 h-4 animate-spin" />
+              重连中...
             </>
           ) : isConnected ? (
             <>
