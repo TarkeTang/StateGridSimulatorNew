@@ -96,7 +96,7 @@ class ConnectionManager:
         if session_id not in self.session_connections:
             self.session_connections[session_id] = set()
         self.session_connections[session_id].add(websocket)
-        log.info(f"WebSocket订阅会话: {session_id}")
+        log.info(f"WebSocket订阅会话: session_id={session_id}, 当前订阅连接数: {len(self.session_connections[session_id])}")
 
     def unsubscribe_session(self, websocket: WebSocket, session_id: int):
         """取消订阅会话消息"""
@@ -123,7 +123,7 @@ class ConnectionManager:
     async def broadcast_to_session(self, session_id: int, message: Dict[str, Any]):
         """广播消息给订阅指定会话的连接"""
         if session_id not in self.session_connections:
-            log.warning(f"没有订阅会话 {session_id} 的连接，跳过推送")
+            log.warning(f"广播失败: 没有订阅会话 {session_id} 的连接")
             return
 
         connections = self.session_connections[session_id]
@@ -179,8 +179,14 @@ async def push_session_status(
             **(extra_data or {}),
         },
     }
+    
+    # 检查是否有订阅
+    if session_id not in manager.session_connections:
+        log.warning(f"推送会话状态失败: 没有订阅会话 {session_id} 的连接")
+        return
+    
     await manager.broadcast_to_session(session_id, message)
-    log.info(f"推送会话状态: session_id={session_id}, status={status}")
+    log.info(f"推送会话状态成功: session_id={session_id}, status={status}")
 
 
 async def push_communication_message(
@@ -280,7 +286,10 @@ async def websocket_endpoint(websocket: WebSocket, user_id: Optional[int] = None
                 if msg_type == "subscribe":
                     session_id = msg_data.get("session_id")
                     if session_id:
+                        # 确保 session_id 是整数
+                        session_id = int(session_id)
                         manager.subscribe_session(websocket, session_id)
+                        log.info(f"WebSocket 订阅成功: session_id={session_id}")
                         await manager.send_personal_message(
                             {
                                 "type": "subscribed",
