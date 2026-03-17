@@ -7,7 +7,6 @@ import {
   Trash2,
   Download,
   Wifi,
-  WifiOff,
   Clock,
   ArrowUpRight,
   ArrowDownLeft,
@@ -46,7 +45,7 @@ const TcpDebugPage = () => {
   const [connectTime, setConnectTime] = useState<string | null>(null)
 
   const messageIdRef = useRef(0)
-  const autoSendTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const autoSendTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   // 获取当前时间戳

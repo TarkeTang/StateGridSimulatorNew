@@ -3,14 +3,14 @@
  */
 
 import api from './api'
-import type { ApiResponse } from '@/types/api'
 
 // ==================== 类型定义 ====================
 
 export interface SessionMessage {
   id: number
-  session_id: number
-  session_name: string | null
+  connection_id: number
+  session_id: string  // 格式: {config_id}_{timestamp}
+  config_id: number
   direction: 'send' | 'receive' | 'system'
   content: string
   content_hex: string | null
@@ -37,8 +37,9 @@ export interface SessionMessageListResponse {
 }
 
 export interface SessionMessageCreate {
-  session_id: number
-  session_name?: string
+  connection_id: number
+  session_id: string
+  config_id: number
   direction: 'send' | 'receive' | 'system'
   content: string
   content_hex?: string
@@ -59,19 +60,6 @@ export interface MessageListParams {
   end_time?: string
 }
 
-export interface MessageStatistics {
-  id: number
-  session_id: number
-  total_send: number
-  total_receive: number
-  total_bytes_send: number
-  total_bytes_receive: number
-  total_errors: number
-  first_message_at: string | null
-  last_message_at: string | null
-  updated_at: string
-}
-
 // ==================== API 服务 ====================
 
 export const messageService = {
@@ -79,7 +67,7 @@ export const messageService = {
    * 创建消息记录
    */
   create: (data: SessionMessageCreate) => {
-    return api.post<ApiResponse<SessionMessage>>('/messages', data)
+    return api.post<SessionMessage>('/messages', data)
   },
 
   /**
@@ -93,29 +81,29 @@ export const messageService = {
     if (params.start_time) queryParams.append('start_time', params.start_time)
     if (params.end_time) queryParams.append('end_time', params.end_time)
 
-    return api.get<ApiResponse<SessionMessageListResponse>>(
+    return api.get<SessionMessageListResponse>(
       `/messages/session/${sessionId}?${queryParams.toString()}`
     )
+  },
+
+  /**
+   * 获取配置的最近消息（用于显示旧连接消息）
+   */
+  getRecentByConfig: (configId: number, limit: number = 10) => {
+    return api.get<SessionMessage[]>(`/messages/config/${configId}/recent?limit=${limit}`)
   },
 
   /**
    * 获取消息详情
    */
   getById: (messageId: number) => {
-    return api.get<ApiResponse<SessionMessage>>(`/messages/${messageId}`)
+    return api.get<SessionMessage>(`/messages/${messageId}`)
   },
 
   /**
    * 清空会话消息
    */
   clearBySession: (sessionId: number) => {
-    return api.delete<ApiResponse<null>>(`/messages/session/${sessionId}`)
-  },
-
-  /**
-   * 获取会话消息统计
-   */
-  getStatistics: (sessionId: number) => {
-    return api.get<ApiResponse<MessageStatistics>>(`/messages/session/${sessionId}/statistics`)
+    return api.delete<null>(`/messages/session/${sessionId}`)
   },
 }

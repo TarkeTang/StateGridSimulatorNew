@@ -125,7 +125,7 @@ class SessionConfigService:
         try:
             # 创建 TCP 连接
             conn = await tcp_manager.create_connection(
-                session_id=config_id,
+                config_id=config_id,
                 session_name=config.name,
                 host=config.host,
                 port=config.port,

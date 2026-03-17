@@ -14,12 +14,15 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import TYPE_CHECKING, Any, Dict, Optional
 
-from sqlalchemy import DateTime, Integer, String, Text, func
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, func
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.models.base import Base
+
+if TYPE_CHECKING:
+    from src.models.connection import ConnectionSession
 
 
 class SessionMessage(Base):
@@ -33,9 +36,30 @@ class SessionMessage(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True, comment="主键ID")
 
-    # 关联会话
-    session_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True, comment="会话ID")
-    session_name: Mapped[Optional[str]] = mapped_column(String(100), nullable=True, comment="会话名称（冗余存储）")
+    # 关联连接会话
+    connection_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("sys_connection_session.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+        comment="连接会话ID",
+    )
+
+    # 会话标识（冗余存储，便于查询）
+    session_id: Mapped[str] = mapped_column(
+        String(50),
+        nullable=False,
+        index=True,
+        comment="会话标识，格式: {config_id}_{timestamp}",
+    )
+
+    # 会话配置ID（冗余存储，便于按配置查询）
+    config_id: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        index=True,
+        comment="会话配置ID",
+    )
 
     # 消息方向
     direction: Mapped[str] = mapped_column(
@@ -83,11 +107,15 @@ class SessionMessage(Base):
         DateTime(timezone=True), server_default=func.now(), comment="创建时间"
     )
 
+    # 关系
+    connection: Mapped["ConnectionSession"] = relationship("ConnectionSession", back_populates="messages")
+
     def to_dict(self) -> Dict[str, Any]:
         return {
             "id": self.id,
+            "connection_id": self.connection_id,
             "session_id": self.session_id,
-            "session_name": self.session_name,
+            "config_id": self.config_id,
             "direction": self.direction,
             "content": self.content,
             "content_hex": self.content_hex,

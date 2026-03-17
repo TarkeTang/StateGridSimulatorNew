@@ -131,7 +131,6 @@ class SessionStatusUpdate(BaseModel):
 class SessionMessageBase(BaseModel):
     """会话消息基础模式"""
 
-    session_id: int = Field(..., description="会话ID")
     direction: str = Field(..., description="消息方向")
     content: str = Field(..., description="消息内容")
     message_type: str = Field(default="data", description="消息类型")
@@ -141,7 +140,9 @@ class SessionMessageBase(BaseModel):
 class SessionMessageCreate(SessionMessageBase):
     """创建会话消息请求"""
 
-    session_name: Optional[str] = Field(None, description="会话名称")
+    connection_id: int = Field(..., description="连接会话ID")
+    session_id: str = Field(..., description="会话标识")
+    config_id: int = Field(..., description="会话配置ID")
     content_hex: Optional[str] = Field(None, description="消息内容十六进制")
     source_address: Optional[str] = Field(None, description="来源地址")
     source_port: Optional[int] = Field(None, description="来源端口")
@@ -150,13 +151,19 @@ class SessionMessageCreate(SessionMessageBase):
     extra_data: Optional[str] = Field(None, description="扩展数据")
 
 
-class SessionMessageResponse(SessionMessageBase):
+class SessionMessageResponse(BaseModel):
     """会话消息响应"""
 
     id: int = Field(description="主键ID")
-    session_name: Optional[str] = Field(None, description="会话名称")
+    connection_id: int = Field(description="连接会话ID")
+    session_id: str = Field(description="会话标识")
+    config_id: int = Field(description="会话配置ID")
+    direction: str = Field(description="消息方向")
+    content: str = Field(description="消息内容")
     content_hex: Optional[str] = Field(None, description="消息内容十六进制")
     content_length: int = Field(description="消息长度")
+    message_type: str = Field(description="消息类型")
+    protocol_type: str = Field(description="协议类型")
     source_address: Optional[str] = Field(None, description="来源地址")
     source_port: Optional[int] = Field(None, description="来源端口")
     target_address: Optional[str] = Field(None, description="目标地址")

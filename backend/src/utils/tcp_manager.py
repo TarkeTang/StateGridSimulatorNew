@@ -6,7 +6,9 @@ TCP 连接管理器
 - TCP 服务端监听
 - 异步数据收发
 - 自动重连
+- 消息自动持久化
 - WebSocket 消息推送
+- 每次连接创建新的连接记录
 """
 
 from __future__ import annotations
@@ -15,8 +17,12 @@ import asyncio
 from datetime import datetime
 from typing import Any, Callable, Dict, Optional
 
+from src.db.session import AsyncSessionLocal
+from src.repositories.connection_repository import ConnectionSessionRepository
+from src.schemas.connection import ConnectionSessionCreate
+from src.services.message_handler import message_handler
 from src.utils.logger import get_logger
-from src.utils.websocket_manager import push_session_status, push_communication_message
+from src.utils.websocket_manager import push_session_status
 
 log = get_logger("tcp_manager")
 
@@ -26,19 +32,23 @@ class TcpConnection:
 
     def __init__(
         self,
-        session_id: int,
+        config_id: int,
         session_name: str,
         host: str,
         port: int,
         on_message: Optional[Callable[[int, str, str], None]] = None,
         on_status_change: Optional[Callable[[int, str, Optional[str]], None]] = None,
     ):
-        self.session_id = session_id
+        self.config_id = config_id
         self.session_name = session_name
         self.host = host
         self.port = port
         self.on_message = on_message
         self.on_status_change = on_status_change
+
+        # 连接会话信息（每次连接创建新的）
+        self.connection_id: Optional[int] = None
+        self.session_id: Optional[str] = None  # 格式: {config_id}_{timestamp}
 
         self.reader: Optional[asyncio.StreamReader] = None
         self.writer: Optional[asyncio.StreamWriter] = None
@@ -53,6 +63,7 @@ class TcpConnection:
         self.reconnect_count: int = 0
         self.buffer_size: int = 4096
         self.encoding: str = "UTF-8"
+        self.protocol_type: str = "TCP"
 
     async def connect(self) -> bool:
         """建立 TCP 连接"""
@@ -65,15 +76,38 @@ class TcpConnection:
 
         try:
             log.info(f"正在连接 {self.host}:{self.port}...")
+
+            # 先建立 TCP 连接
             self.reader, self.writer = await asyncio.wait_for(
                 asyncio.open_connection(self.host, self.port),
                 timeout=10.0,
             )
 
+            # TCP 连接成功后，创建连接会话记录
+            try:
+                async with AsyncSessionLocal() as db:
+                    repo = ConnectionSessionRepository(db)
+                    connection = await repo.create(ConnectionSessionCreate(config_id=self.config_id))
+                    await db.commit()
+                    self.connection_id = connection.id
+                    self.session_id = connection.session_id
+                    log.info(f"创建连接会话记录: connection_id={self.connection_id}, session_id={self.session_id}")
+            except Exception as db_error:
+                log.error(f"创建连接记录失败: {db_error}")
+                # 即使数据库操作失败，TCP 连接已建立，继续处理
+
             self.status = "connected"
             self.reconnect_count = 0
             self._notify_status_change("connected")
             log.info(f"TCP 连接成功: {self.host}:{self.port}")
+
+            # 注册会话到消息处理器
+            if self.connection_id:
+                message_handler.register_session(
+                    session_id=self.connection_id,
+                    session_name=self.session_name,
+                    protocol_type=self.protocol_type,
+                )
 
             # 启动接收任务
             self.receive_task = asyncio.create_task(self._receive_loop())
@@ -137,6 +171,14 @@ class TcpConnection:
 
             self.reader = None
             self.status = "disconnected"
+
+            # 更新连接会话状态
+            await self._update_connection_status("disconnected")
+
+            # 注销会话
+            if self.connection_id:
+                message_handler.unregister_session(self.connection_id)
+
             self._notify_status_change("disconnected")
             log.info(f"TCP 连接已断开: {self.host}:{self.port}")
             return True
@@ -145,10 +187,14 @@ class TcpConnection:
             log.error(f"断开连接异常: {e}")
             return False
 
-    async def send(self, data: str) -> bool:
+    async def send(self, data: str, is_auto_send: bool = False) -> bool:
         """发送数据"""
         if self.status != "connected" or not self.writer:
             log.warning(f"会话 {self.session_name} 未连接，无法发送数据")
+            return False
+
+        if not self.connection_id or not self.session_id:
+            log.warning(f"会话 {self.session_name} 连接信息缺失")
             return False
 
         try:
@@ -158,10 +204,19 @@ class TcpConnection:
             await self.writer.drain()
 
             log.info(f"TCP 发送数据: {self.session_name}, 长度: {len(encoded_data)}")
-            
-            # 通知消息回调
-            if self.on_message:
-                self.on_message(self.session_id, "send", data)
+
+            # 使用消息处理器处理发送消息（自动持久化和推送）
+            await message_handler.handle_send(
+                connection_id=self.connection_id,
+                session_id=self.session_id,
+                config_id=self.config_id,
+                content=data,
+                is_auto_send=is_auto_send,
+                save_to_db=True,
+            )
+
+            # 更新发送计数
+            await self._increment_send_count()
 
             return True
 
@@ -206,11 +261,26 @@ class TcpConnection:
                 except UnicodeDecodeError:
                     text = data.hex()
 
+                # 获取十六进制表示
+                content_hex = data.hex().upper()
+                # 格式化十六进制（每字节空格分隔）
+                content_hex = " ".join([content_hex[i : i + 2] for i in range(0, len(content_hex), 2)])
+
                 log.info(f"TCP 接收数据: {self.session_name}, 长度: {len(data)}")
 
-                # 通知消息回调
-                if self.on_message:
-                    self.on_message(self.session_id, "receive", text)
+                # 使用消息处理器处理接收消息（自动持久化和推送）
+                if self.connection_id and self.session_id:
+                    await message_handler.handle_receive(
+                        connection_id=self.connection_id,
+                        session_id=self.session_id,
+                        config_id=self.config_id,
+                        content=text,
+                        content_hex=content_hex,
+                        save_to_db=True,
+                    )
+
+                    # 更新接收计数
+                    await self._increment_receive_count()
 
             except asyncio.CancelledError:
                 break
@@ -226,7 +296,7 @@ class TcpConnection:
 
         old_status = self.status
         self.status = "disconnected"
-        
+
         # 清理资源
         if self.writer:
             try:
@@ -236,6 +306,13 @@ class TcpConnection:
                 pass
             self.writer = None
         self.reader = None
+
+        # 更新连接会话状态
+        await self._update_connection_status("disconnected", "连接已断开")
+
+        # 注销会话
+        if self.connection_id:
+            message_handler.unregister_session(self.connection_id)
 
         # 通知状态变更
         self._notify_status_change("disconnected", "连接已断开")
@@ -258,7 +335,7 @@ class TcpConnection:
             )
 
             await asyncio.sleep(self.reconnect_interval / 1000)
-            
+
             success = await self.connect()
             if success:
                 log.info(f"自动重连成功: {self.host}:{self.port}")
@@ -266,21 +343,60 @@ class TcpConnection:
 
         log.warning(f"自动重连失败，已达最大重试次数: {self.host}:{self.port}")
 
+    async def _update_connection_status(self, status: str, error_message: Optional[str] = None):
+        """更新连接会话状态"""
+        if not self.connection_id:
+            return
+
+        try:
+            async with AsyncSessionLocal() as db:
+                repo = ConnectionSessionRepository(db)
+                await repo.update_status(self.connection_id, status, error_message)
+                await db.commit()
+        except Exception as e:
+            log.error(f"更新连接状态失败: {e}")
+
+    async def _increment_send_count(self):
+        """增加发送计数"""
+        if not self.connection_id:
+            return
+
+        try:
+            async with AsyncSessionLocal() as db:
+                repo = ConnectionSessionRepository(db)
+                await repo.increment_send_count(self.connection_id)
+                await db.commit()
+        except Exception as e:
+            log.error(f"更新发送计数失败: {e}")
+
+    async def _increment_receive_count(self):
+        """增加接收计数"""
+        if not self.connection_id:
+            return
+
+        try:
+            async with AsyncSessionLocal() as db:
+                repo = ConnectionSessionRepository(db)
+                await repo.increment_receive_count(self.connection_id)
+                await db.commit()
+        except Exception as e:
+            log.error(f"更新接收计数失败: {e}")
+
     def _notify_status_change(self, status: str, error_message: Optional[str] = None):
         """通知状态变更"""
         if self.on_status_change:
-            self.on_status_change(self.session_id, status, error_message)
+            self.on_status_change(self.config_id, status, error_message)
 
 
 class TcpConnectionManager:
     """TCP 连接管理器"""
 
     def __init__(self):
-        self.connections: Dict[int, TcpConnection] = {}
+        self.connections: Dict[int, TcpConnection] = {}  # key: config_id
 
     async def create_connection(
         self,
-        session_id: int,
+        config_id: int,
         session_name: str,
         host: str,
         port: int,
@@ -292,11 +408,11 @@ class TcpConnectionManager:
     ) -> TcpConnection:
         """创建 TCP 连接实例"""
         # 如果已存在，先断开
-        if session_id in self.connections:
-            await self.disconnect(session_id)
+        if config_id in self.connections:
+            await self.disconnect(config_id)
 
         conn = TcpConnection(
-            session_id=session_id,
+            config_id=config_id,
             session_name=session_name,
             host=host,
             port=port,
@@ -311,79 +427,71 @@ class TcpConnectionManager:
         conn.buffer_size = buffer_size
         conn.encoding = encoding
 
-        self.connections[session_id] = conn
+        self.connections[config_id] = conn
         return conn
 
-    async def connect(self, session_id: int) -> bool:
+    async def connect(self, config_id: int) -> bool:
         """连接指定会话"""
-        conn = self.connections.get(session_id)
+        conn = self.connections.get(config_id)
         if not conn:
-            log.error(f"会话 {session_id} 不存在")
+            log.error(f"会话配置 {config_id} 不存在")
             return False
 
         return await conn.connect()
 
-    async def disconnect(self, session_id: int) -> bool:
+    async def disconnect(self, config_id: int) -> bool:
         """断开指定会话"""
-        conn = self.connections.get(session_id)
+        conn = self.connections.get(config_id)
         if not conn:
             return True
 
         result = await conn.disconnect()
-        del self.connections[session_id]
+        del self.connections[config_id]
         return result
 
     async def disconnect_all(self):
         """断开所有连接"""
-        for session_id in list(self.connections.keys()):
-            await self.disconnect(session_id)
+        for config_id in list(self.connections.keys()):
+            await self.disconnect(config_id)
 
-    async def send(self, session_id: int, data: str) -> bool:
+    async def send(self, config_id: int, data: str, is_auto_send: bool = False) -> bool:
         """发送数据"""
-        conn = self.connections.get(session_id)
+        conn = self.connections.get(config_id)
         if not conn:
-            log.error(f"会话 {session_id} 不存在")
+            log.error(f"会话配置 {config_id} 不存在")
             return False
 
-        return await conn.send(data)
+        return await conn.send(data, is_auto_send=is_auto_send)
 
-    async def send_bytes(self, session_id: int, data: bytes) -> bool:
+    async def send_bytes(self, config_id: int, data: bytes) -> bool:
         """发送字节数据"""
-        conn = self.connections.get(session_id)
+        conn = self.connections.get(config_id)
         if not conn:
-            log.error(f"会话 {session_id} 不存在")
+            log.error(f"会话配置 {config_id} 不存在")
             return False
 
         return await conn.send_bytes(data)
 
-    def get_connection(self, session_id: int) -> Optional[TcpConnection]:
+    def get_connection(self, config_id: int) -> Optional[TcpConnection]:
         """获取连接实例"""
-        return self.connections.get(session_id)
+        return self.connections.get(config_id)
 
-    def get_status(self, session_id: int) -> str:
+    def get_status(self, config_id: int) -> str:
         """获取连接状态"""
-        conn = self.connections.get(session_id)
+        conn = self.connections.get(config_id)
         return conn.status if conn else "disconnected"
 
-    def _on_message(self, session_id: int, direction: str, content: str):
-        """消息回调 - 推送到 WebSocket"""
-        log.info(f"TCP 消息回调: session={session_id}, direction={direction}")
-        # 推送消息到 WebSocket
-        asyncio.create_task(
-            push_communication_message(
-                session_id=session_id,
-                direction=direction,
-                content=content,
-            )
-        )
+    def _on_message(self, config_id: int, direction: str, content: str):
+        """消息回调（已由 message_handler 处理，此处保留兼容）"""
+        pass
 
-    def _on_status_change(self, session_id: int, status: str, error_message: Optional[str] = None):
+    def _on_status_change(self, config_id: int, status: str, error_message: Optional[str] = None):
         """状态变更回调 - 推送到 WebSocket"""
-        log.info(f"TCP 状态变更回调: session={session_id}, status={status}")
+        log.info(f"TCP 状态变更回调: config={config_id}, status={status}")
         # 推送状态到 WebSocket
         asyncio.create_task(
             push_session_status(
-                session_id=session_id,
+                session_id=config_id,
                 status=status,
                 error_message=error_message,
             )

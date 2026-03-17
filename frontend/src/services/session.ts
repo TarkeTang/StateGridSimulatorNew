@@ -3,7 +3,6 @@
  */
 
 import api from './api'
-import type { ApiResponse } from '@/types/api'
 
 // ==================== 类型定义 ====================
 
@@ -103,56 +102,56 @@ export const sessionService = {
     if (params.status) queryParams.append('status', params.status)
     if (params.keyword) queryParams.append('keyword', params.keyword)
     if (params.is_enabled !== undefined) queryParams.append('is_enabled', String(params.is_enabled))
-    
-    return api.get<ApiResponse<SessionConfigListResponse>>(`/sessions?${queryParams.toString()}`)
+
+    return api.get<SessionConfigListResponse>(`/sessions?${queryParams.toString()}`)
   },
 
   /**
    * 获取会话配置详情
    */
   getById: (id: number) => {
-    return api.get<ApiResponse<SessionConfig>>(`/sessions/${id}`)
+    return api.get<SessionConfig>(`/sessions/${id}`)
   },
 
   /**
    * 创建会话配置
    */
   create: (data: SessionConfigCreate) => {
-    return api.post<ApiResponse<SessionConfig>>('/sessions', data)
+    return api.post<SessionConfig>('/sessions', data)
   },
 
   /**
    * 更新会话配置
    */
   update: (id: number, data: SessionConfigUpdate) => {
-    return api.put<ApiResponse<SessionConfig>>(`/sessions/${id}`, data)
+    return api.put<SessionConfig>(`/sessions/${id}`, data)
   },
 
   /**
    * 删除会话配置
    */
   delete: (id: number) => {
-    return api.delete<ApiResponse<null>>(`/sessions/${id}`)
+    return api.delete<null>(`/sessions/${id}`)
   },
 
   /**
    * 连接会话
    */
   connect: (id: number) => {
-    return api.post<ApiResponse<SessionConfig>>(`/sessions/${id}/connect`)
+    return api.post<SessionConfig>(`/sessions/${id}/connect`)
   },
 
   /**
    * 断开会话
    */
   disconnect: (id: number) => {
-    return api.post<ApiResponse<SessionConfig>>(`/sessions/${id}/disconnect`)
+    return api.post<SessionConfig>(`/sessions/${id}/disconnect`)
   },
 
   /**
    * 发送消息
    */
   send: (id: number, data: string) => {
-    return api.post<ApiResponse<null>>(`/sessions/${id}/send`, { data })
+    return api.post<null>(`/sessions/${id}/send`, { data })
   },
 }
