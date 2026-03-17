@@ -11,22 +11,18 @@ interface MessageLogProps {
   messages: SessionMessage[]
   loading: boolean
   showTimestamp: boolean
-  showHex: boolean
   onClear: () => void
   onExport: () => void
   onToggleTimestamp: () => void
-  onToggleHex: () => void
 }
 
 export function MessageLog({
   messages,
   loading,
   showTimestamp,
-  showHex,
   onClear,
   onExport,
   onToggleTimestamp,
-  onToggleHex,
 }: MessageLogProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
@@ -44,15 +40,6 @@ export function MessageLog({
               className="accent-signal-blue"
             />
             <span className="text-xs text-gray-400">时间戳</span>
-          </label>
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={showHex}
-              onChange={onToggleHex}
-              className="accent-signal-blue"
-            />
-            <span className="text-xs text-gray-400">HEX</span>
           </label>
           <Button variant="secondary" size="sm" onClick={onClear}>
             <Trash2 className="w-3 h-3" />
@@ -131,12 +118,6 @@ export function MessageLog({
                       <div className="text-gray-200 break-all whitespace-pre-wrap">
                         {msg.content}
                       </div>
-
-                      {showHex && msg.content_hex && (
-                        <div className="text-gray-500 text-xs mt-1 font-mono">
-                          HEX: {msg.content_hex}
-                        </div>
-                      )}
                     </div>
                   </div>
                 </div>

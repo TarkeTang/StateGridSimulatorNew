@@ -49,7 +49,6 @@ function SessionDetailPage() {
 
   // 消息显示选项
   const [showTimestamp, setShowTimestamp] = useState(true)
-  const [showHex, setShowHex] = useState(false)
 
   // 自动发送弹窗
   const [autoSendDialogOpen, setAutoSendDialogOpen] = useState(false)
@@ -70,6 +69,7 @@ function SessionDetailPage() {
     handleConnect,
     handleSend,
     clearMessages,
+    exportMessages,
     addLocalMessage,
   } = useSessionDetail({ sessionId })
 
@@ -168,26 +168,6 @@ function SessionDetailPage() {
     }
   }, [handleSend, sendData])
 
-  // 导出日志
-  const exportLog = useCallback(() => {
-    const log = messages
-      .map((msg) => {
-        const typeLabel =
-          msg.direction === 'send' ? '发送' : msg.direction === 'receive' ? '接收' : '系统'
-        const extraData = msg.extra_data ? JSON.parse(msg.extra_data) : {}
-        const isAutoSend = extraData.is_auto_send ? '自动发送' : typeLabel
-        return `[${msg.timestamp}] [${msg.direction === 'send' ? isAutoSend : typeLabel}] ${msg.content}`
-      })
-      .join('\n')
-    const blob = new Blob([log], { type: 'text/plain;charset=utf-8' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `session_${id}_${new Date().toISOString().slice(0, 10)}.txt`
-    a.click()
-    URL.revokeObjectURL(url)
-  }, [messages, id])
-
   // 启动自动发送
   const onStartAutoSend = useCallback(async () => {
     const success = await startAutoSend()
@@ -273,11 +253,9 @@ function SessionDetailPage() {
             messages={messages}
             loading={false}
             showTimestamp={showTimestamp}
-            showHex={showHex}
             onClear={clearMessages}
-            onExport={exportLog}
+            onExport={exportMessages}
             onToggleTimestamp={() => setShowTimestamp((v) => !v)}
-            onToggleHex={() => setShowHex((v) => !v)}
           />
         </div>
 
