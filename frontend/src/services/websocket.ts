@@ -259,9 +259,13 @@ class WebSocketClient {
     switch (message.type) {
       case 'session_status': {
         const data = message.data as SessionStatusData
+        console.log('[WebSocket] 收到会话状态消息:', data)
         const handlers = this.sessionStatusHandlers.get(data.session_id)
         if (handlers) {
+          console.log('[WebSocket] 找到处理器，数量:', handlers.size)
           handlers.forEach((handler) => handler(data))
+        } else {
+          console.log('[WebSocket] 未找到处理器，已订阅的会话:', Array.from(this.sessionStatusHandlers.keys()))
         }
         break
       }
