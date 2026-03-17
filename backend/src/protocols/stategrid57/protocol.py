@@ -189,17 +189,17 @@ class StateGrid57Protocol:
         Returns:
             打包后的字节流
         """
-        # 会话标识
+        # 会话标识（1字节）
         if session_source == "request":
-            session_source_id = cls.SESSION_REQUEST
+            session_source_id = bytes([0x00])  # 请求
             send_num = send_session_num
             recv_num = 0
         elif session_source == "response":
-            session_source_id = cls.SESSION_RESPONSE
+            session_source_id = bytes([0x01])  # 响应
             send_num = 0
             recv_num = receive_session_num
         else:
-            session_source_id = "02"
+            session_source_id = bytes([0x02])
             send_num = send_session_num
             recv_num = receive_session_num
 
@@ -214,7 +214,7 @@ class StateGrid57Protocol:
             cls.PACKET_HEADER
             + send_session_bytes
             + receive_session_bytes
-            + session_source_id.encode()
+            + session_source_id
             + xml_length_bytes
             + xml_bytes
             + cls.PACKET_FOOTER
