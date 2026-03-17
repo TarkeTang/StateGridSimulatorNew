@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import json
 from typing import List, Optional, Tuple
 
 from sqlalchemy import func, or_
@@ -27,7 +28,22 @@ class SessionConfigRepository:
 
     async def create(self, data: SessionConfigCreate) -> SessionConfig:
         """创建会话配置"""
-        config = SessionConfig(**data.model_dump())
+        data_dict = data.model_dump()
+        
+        # 处理 stategrid57_config，存储到 extra_config 中
+        if "stategrid57_config" in data_dict and data_dict["stategrid57_config"]:
+            extra_config = {}
+            if data_dict.get("extra_config"):
+                try:
+                    extra_config = json.loads(data_dict["extra_config"])
+                except (json.JSONDecodeError, TypeError):
+                    extra_config = {}
+            extra_config["stategrid57_config"] = data_dict.pop("stategrid57_config")
+            data_dict["extra_config"] = json.dumps(extra_config, ensure_ascii=False)
+        elif "stategrid57_config" in data_dict:
+            del data_dict["stategrid57_config"]
+        
+        config = SessionConfig(**data_dict)
         self.db.add(config)
         await self.db.flush()
         await self.db.refresh(config)
@@ -89,6 +105,20 @@ class SessionConfigRepository:
             return None
 
         update_data = data.model_dump(exclude_unset=True)
+        
+        # 处理 stategrid57_config，存储到 extra_config 中
+        if "stategrid57_config" in update_data and update_data["stategrid57_config"]:
+            extra_config = {}
+            if config.extra_config:
+                try:
+                    extra_config = json.loads(config.extra_config)
+                except (json.JSONDecodeError, TypeError):
+                    extra_config = {}
+            extra_config["stategrid57_config"] = update_data.pop("stategrid57_config")
+            update_data["extra_config"] = json.dumps(extra_config, ensure_ascii=False)
+        elif "stategrid57_config" in update_data:
+            del update_data["stategrid57_config"]
+        
         for key, value in update_data.items():
             setattr(config, key, value)
 

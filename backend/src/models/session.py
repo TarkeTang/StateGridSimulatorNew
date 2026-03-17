@@ -112,7 +112,7 @@ class SessionConfig(Base):
     )
 
     def to_dict(self) -> Dict[str, Any]:
-        return {
+        result = {
             "id": self.id,
             "name": self.name,
             "description": self.description,
@@ -146,3 +146,15 @@ class SessionConfig(Base):
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }
+        
+        # 解析 extra_config 中的 stategrid57_config
+        if self.extra_config:
+            try:
+                import json
+                extra = json.loads(self.extra_config)
+                if "stategrid57_config" in extra:
+                    result["stategrid57_config"] = extra["stategrid57_config"]
+            except (json.JSONDecodeError, TypeError):
+                pass
+        
+        return result
