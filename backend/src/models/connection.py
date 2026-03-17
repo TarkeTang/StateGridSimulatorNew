@@ -14,7 +14,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, List, Optional
 
 from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -94,7 +94,7 @@ class ConnectionSession(Base):
 
     # 关系
     config: Mapped["SessionConfig"] = relationship("SessionConfig", back_populates="connections")
-    messages: Mapped[list["SessionMessage"]] = relationship(
+    messages: Mapped[List["SessionMessage"]] = relationship(
         "SessionMessage",
         back_populates="connection",
         cascade="all, delete-orphan",
