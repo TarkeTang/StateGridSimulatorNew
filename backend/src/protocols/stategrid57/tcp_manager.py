@@ -207,7 +207,10 @@ class StateGrid57TcpConnection:
         发送消息
 
         Args:
-            content: 消息内容（可以是原始文本或 JSON 格式的结构化数据）
+            content: 消息内容，支持以下格式：
+                - JSON格式: {"type": "61", "code": "", "command": "", "items": [...]}
+                - 十六进制报文: 以 "hex:" 开头，如 "hex:EB90..."
+                - 普通文本: 自动打包成协议消息
             is_auto_send: 是否为自动发送
 
         Returns:
@@ -216,16 +219,45 @@ class StateGrid57TcpConnection:
         if self.status != "connected" or not self.writer:
             return {"success": False, "error": "未连接"}
 
+        if not self._protocol_handler:
+            return {"success": False, "error": "协议处理器未初始化"}
+
         try:
+            raw_data: bytes
+            
+            # 检查是否是十六进制报文
+            if content.lower().startswith("hex:"):
+                # 十六进制格式，直接转换
+                hex_str = content[4:].strip()
+                raw_data = bytes.fromhex(hex_str)
+                log.info(f"发送十六进制报文: {hex_str[:40]}...")
+            
             # 尝试解析为 JSON
-            try:
-                data = json.loads(content)
-                # 如果是结构化数据，构建协议消息
-                message = self._build_message_from_dict(data)
-                raw_data = message
-            except json.JSONDecodeError:
-                # 原始文本，直接发送
-                raw_data = content.encode("utf-8")
+            elif content.strip().startswith("{"):
+                try:
+                    data = json.loads(content)
+                    if isinstance(data, dict):
+                        raw_data = self._build_message_from_dict(data)
+                        log.info(f"发送JSON格式消息: type={data.get('type', 'unknown')}")
+                    else:
+                        raw_data = self._protocol_handler.create_data_message(
+                            message_type="64",
+                            items=[{"data": str(data)}],
+                        )
+                except json.JSONDecodeError:
+                    # JSON解析失败，作为普通文本
+                    raw_data = self._protocol_handler.create_data_message(
+                        message_type="64",
+                        items=[{"content": content}],
+                    )
+            
+            # 普通文本，打包成协议消息
+            else:
+                raw_data = self._protocol_handler.create_data_message(
+                    message_type="64",  # 默认使用监视数据类型
+                    items=[{"content": content}],
+                )
+                log.info(f"发送普通文本消息，已打包成协议格式")
 
             # 发送数据
             self.writer.write(raw_data)
