@@ -91,7 +91,7 @@ class StateGrid57TcpConnection:
             return True
 
         self.status = "connecting"
-        self._notify_status_change("connecting")
+        await self._notify_status_change("connecting")
 
         try:
             log.info(f"正在连接 {self.host}:{self.port}...")
@@ -128,7 +128,7 @@ class StateGrid57TcpConnection:
                 self.reconnect_task = None
 
             self.status = "connected"
-            self._notify_status_change("connected")
+            await self._notify_status_change("connected")
             log.info(f"TCP 连接成功: {self.host}:{self.port}")
 
             # 注册会话到消息处理器
@@ -152,21 +152,21 @@ class StateGrid57TcpConnection:
             error_msg = f"连接超时: {self.host}:{self.port}"
             log.error(error_msg)
             self.status = "error"
-            self._notify_status_change("error", error_msg)
+            await self._notify_status_change("error", error_msg)
             return False
 
         except OSError as e:
             error_msg = f"连接失败: {e.strerror or str(e)}"
             log.error(f"TCP 连接失败: {self.host}:{self.port}, 错误: {e}")
             self.status = "error"
-            self._notify_status_change("error", error_msg)
+            await self._notify_status_change("error", error_msg)
             return False
 
         except Exception as e:
             error_msg = f"连接异常: {str(e)}"
             log.error(f"TCP 连接异常: {self.host}:{self.port}, 错误: {e}")
             self.status = "error"
-            self._notify_status_change("error", error_msg)
+            await self._notify_status_change("error", error_msg)
             return False
 
     async def disconnect(self) -> bool:
@@ -218,7 +218,7 @@ class StateGrid57TcpConnection:
                 message_handler.unregister_session(self.connection_id)
 
             self.status = "disconnected"
-            self._notify_status_change("disconnected")
+            await self._notify_status_change("disconnected")
             log.info(f"TCP 连接已断开: {self.host}:{self.port}")
 
             return True
@@ -487,13 +487,32 @@ class StateGrid57TcpConnection:
         # 尝试自动重连
         if self.auto_reconnect and self.reconnect_count < self.max_reconnect_times:
             self.status = "reconnecting"
-            self._notify_status_change("reconnecting", f"连接断开，正在尝试自动重连...")
+            await self._notify_status_change("reconnecting", f"连接断开，正在尝试自动重连...")
+            
+            # 发送系统消息
+            if self.connection_id and self.session_id:
+                await message_handler.handle_system(
+                    connection_id=self.connection_id,
+                    session_id=self.session_id,
+                    config_id=self.config_id,
+                    content="⚠️ 连接已断开，正在尝试自动重连...",
+                )
+            
             self.reconnect_task = asyncio.create_task(self._auto_reconnect())
         else:
             # 更新连接记录状态
             await self._update_connection_status("disconnected", "连接已断开")
             self.status = "disconnected"
-            self._notify_status_change("disconnected", "连接已断开")
+            await self._notify_status_change("disconnected", "连接已断开")
+            
+            # 发送系统消息
+            if self.connection_id and self.session_id:
+                await message_handler.handle_system(
+                    connection_id=self.connection_id,
+                    session_id=self.session_id,
+                    config_id=self.config_id,
+                    content="❌ 连接已断开",
+                )
 
     async def _auto_reconnect(self):
         """自动重连"""
@@ -510,10 +529,19 @@ class StateGrid57TcpConnection:
 
             # 更新状态
             self.status = "reconnecting"
-            self._notify_status_change(
+            await self._notify_status_change(
                 "reconnecting",
                 f"连接断开，正在重连 ({self.reconnect_count}/{self.max_reconnect_times})...",
             )
+            
+            # 发送系统消息
+            if self.connection_id and self.session_id:
+                await message_handler.handle_system(
+                    connection_id=self.connection_id,
+                    session_id=self.session_id,
+                    config_id=self.config_id,
+                    content=f"🔄 正在尝试重连 ({self.reconnect_count}/{self.max_reconnect_times})...",
+                )
 
             await asyncio.sleep(self.reconnect_interval / 1000)
 
@@ -521,13 +549,31 @@ class StateGrid57TcpConnection:
             if success:
                 log.info(f"自动重连成功: {self.host}:{self.port}")
                 self.reconnect_count = 0
+                
+                # 发送系统消息
+                if self.connection_id and self.session_id:
+                    await message_handler.handle_system(
+                        connection_id=self.connection_id,
+                        session_id=self.session_id,
+                        config_id=self.config_id,
+                        content="✅ 重连成功",
+                    )
                 return
 
         # 重连失败
         log.warning(f"自动重连失败，已达最大重试次数: {self.host}:{self.port}")
         self.status = "disconnected"
         await self._update_connection_status("disconnected", "连接已断开，自动重连失败")
-        self._notify_status_change("disconnected", "连接已断开，自动重连失败")
+        await self._notify_status_change("disconnected", "连接已断开，自动重连失败")
+        
+        # 发送系统消息
+        if self.connection_id and self.session_id:
+            await message_handler.handle_system(
+                connection_id=self.connection_id,
+                session_id=self.session_id,
+                config_id=self.config_id,
+                content="❌ 重连失败，连接已断开",
+            )
 
     def _on_protocol_message(self, message: StateGrid57Message):
         """协议消息回调"""
@@ -597,16 +643,18 @@ class StateGrid57TcpConnection:
         except Exception as e:
             log.error(f"更新连接状态失败: {e}")
 
-    def _notify_status_change(self, status: str, error_message: Optional[str] = None):
+    async def _notify_status_change(self, status: str, error_message: Optional[str] = None):
         """通知状态变更"""
         if self.on_status_change:
             self.on_status_change(self.config_id, status, error_message)
 
         # 推送 WebSocket 状态
-        asyncio.create_task(
-            push_session_status(
+        try:
+            await push_session_status(
                 session_id=self.config_id,
                 status=status,
                 error_message=error_message,
             )
-        )
+            log.info(f"状态变更已推送: config_id={self.config_id}, status={status}")
+        except Exception as e:
+            log.error(f"推送状态变更失败: {e}")
