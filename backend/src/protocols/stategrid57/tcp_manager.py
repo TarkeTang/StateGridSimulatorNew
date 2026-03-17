@@ -595,9 +595,12 @@ class StateGrid57TcpConnection:
 
     def _on_protocol_message(self, message: StateGrid57Message):
         """协议消息回调"""
+        log.info(f"_on_protocol_message 被调用: connection_id={self.connection_id}, session_id={self.session_id}, config_id={self.config_id}")
+        
         # 记录接收的消息
         if self.connection_id and self.session_id:
             content = json.dumps(message.to_dict(), ensure_ascii=False)
+            log.info(f"准备推送接收消息: content长度={len(content)}")
 
             # 创建异步任务处理消息
             asyncio.create_task(
@@ -609,6 +612,8 @@ class StateGrid57TcpConnection:
                     content_hex=StateGrid57Protocol.format_hex_display(message.raw_bytes),
                 )
             )
+        else:
+            log.warning(f"无法处理接收消息: connection_id={self.connection_id}, session_id={self.session_id}")
 
     def _send_raw(self, data: bytes):
         """发送原始数据（供协议处理器回调）"""
