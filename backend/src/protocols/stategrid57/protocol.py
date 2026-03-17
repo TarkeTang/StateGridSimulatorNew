@@ -279,6 +279,15 @@ class StateGrid57Protocol:
         """
         从数据流中分割出完整的报文
 
+        协议结构：
+        - 起始标志符: EB90 (2字节)
+        - 发送会话序列号: long (8字节)
+        - 接收会话序列号: long (8字节)
+        - 会话源标识: 1字节
+        - XML字节长度: int (4字节)
+        - XML内容: 变长
+        - 结束标志符: EB90 (2字节)
+
         Args:
             data: 原始数据流
 
@@ -286,24 +295,49 @@ class StateGrid57Protocol:
             完整报文列表（不含头尾标识）
         """
         packets = []
+        offset = 0
 
-        # 检查是否以 EB90 开头和结尾
-        if not data.startswith(cls.PACKET_HEADER):
-            return packets
+        while offset < len(data):
+            # 检查是否有足够的字节读取头标识
+            if offset + 2 > len(data):
+                break
 
-        # 分割报文
-        parts = data.split(cls.PACKET_HEADER)
-
-        for part in parts:
-            if not part:
+            # 检查是否以 EB90 开头
+            if data[offset : offset + 2] != cls.PACKET_HEADER:
+                # 尝试找到下一个 EB90 头
+                next_header = data.find(cls.PACKET_HEADER, offset + 1)
+                if next_header == -1:
+                    break
+                offset = next_header
                 continue
 
-            # 检查是否以 EB90 结尾
-            if part.endswith(cls.PACKET_FOOTER):
-                # 去掉结尾标识
-                packet_data = part[: -len(cls.PACKET_FOOTER)]
-                if packet_data:
-                    packets.append(packet_data)
+            # 检查是否有足够的字节读取固定头部（2 + 8 + 8 + 1 + 4 = 23字节）
+            if offset + 23 > len(data):
+                break
+
+            # 读取 XML 长度（位置：2 + 8 + 8 + 1 = 19）
+            xml_length = struct.unpack("<i", data[offset + 19 : offset + 23])[0]
+
+            # 计算完整报文长度：2(头) + 8 + 8 + 1 + 4 + xml_length + 2(尾)
+            total_length = 2 + 8 + 8 + 1 + 4 + xml_length + 2
+
+            # 检查是否有完整的报文
+            if offset + total_length > len(data):
+                break
+
+            # 检查结尾标识
+            footer_pos = offset + total_length - 2
+            if data[footer_pos : footer_pos + 2] != cls.PACKET_FOOTER:
+                # 结尾标识不匹配，跳过这个头，继续查找
+                offset += 2
+                continue
+
+            # 提取报文数据（不含头尾）
+            packet_data = data[offset + 2 : footer_pos]
+            packets.append(packet_data)
+
+            # 移动到下一个报文
+            offset += total_length
 
         return packets
 
@@ -320,8 +354,24 @@ class StateGrid57Protocol:
         """
         if not data.startswith(cls.PACKET_HEADER):
             return False
-        if not data.endswith(cls.PACKET_FOOTER):
+
+        # 检查是否有足够的字节读取固定头部
+        if len(data) < 23:
             return False
+
+        # 读取 XML 长度
+        xml_length = struct.unpack("<i", data[19:23])[0]
+
+        # 计算完整报文长度
+        total_length = 2 + 8 + 8 + 1 + 4 + xml_length + 2
+
+        if len(data) < total_length:
+            return False
+
+        # 检查结尾标识
+        if data[total_length - 2 : total_length] != cls.PACKET_FOOTER:
+            return False
+
         return True
 
     @classmethod

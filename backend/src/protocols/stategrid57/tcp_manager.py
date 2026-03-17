@@ -413,6 +413,8 @@ class StateGrid57TcpConnection:
                     await self._handle_disconnect()
                     break
 
+                log.info(f"收到原始数据: 长度={len(data)}, 前20字节={data[:20].hex().upper() if len(data) >= 20 else data.hex().upper()}")
+
                 # 添加到缓冲区
                 self._receive_buffer += data
 
@@ -427,48 +429,90 @@ class StateGrid57TcpConnection:
                 break
 
     async def _process_buffer(self):
-        """处理接收缓冲区"""
-        while self._receive_buffer:
-            # 检查是否有完整的报文
+        """处理接收缓冲区
+        
+        协议结构：
+        - 起始标志符: EB90 (2字节)
+        - 发送会话序列号: long (8字节)
+        - 接收会话序列号: long (8字节)
+        - 会话源标识: 1字节
+        - XML字节长度: int (4字节)
+        - XML内容: 变长
+        - 结束标志符: EB90 (2字节)
+        """
+        while len(self._receive_buffer) >= 23:  # 最小头部长度
+            # 检查是否以 EB90 开头
             if not self._receive_buffer.startswith(StateGrid57Protocol.PACKET_HEADER):
-                # 没有以 EB90 开头，尝试找到下一个报文头
+                # 尝试找到下一个 EB90 头
                 idx = self._receive_buffer.find(StateGrid57Protocol.PACKET_HEADER)
                 if idx == -1:
                     # 没有找到，清空缓冲区
+                    log.warning(f"缓冲区数据不以EB90开头，且未找到EB90头，丢弃数据: {self._receive_buffer[:50].hex().upper()}")
                     self._receive_buffer = b""
                     return
                 # 丢弃无效数据
+                log.warning(f"丢弃EB90头之前的数据: {self._receive_buffer[:idx].hex().upper()}")
                 self._receive_buffer = self._receive_buffer[idx:]
 
-            # 检查是否有完整的报文（以 EB90 结尾）
-            idx = self._receive_buffer.find(
-                StateGrid57Protocol.PACKET_FOOTER,
-                len(StateGrid57Protocol.PACKET_HEADER),
-            )
-            if idx == -1:
-                # 没有完整的报文，等待更多数据
+            # 检查是否有足够的字节读取固定头部（2 + 8 + 8 + 1 + 4 = 23字节）
+            if len(self._receive_buffer) < 23:
                 return
 
-            # 提取完整报文
-            packet = self._receive_buffer[: idx + len(StateGrid57Protocol.PACKET_FOOTER)]
-            self._receive_buffer = self._receive_buffer[idx + len(StateGrid57Protocol.PACKET_FOOTER) :]
+            # 读取 XML 长度（位置：2 + 8 + 8 + 1 = 19）
+            import struct
+            xml_length = struct.unpack("<i", self._receive_buffer[19:23])[0]
+
+            # 计算完整报文长度：2(头) + 8 + 8 + 1 + 4 + xml_length + 2(尾)
+            total_length = 2 + 8 + 8 + 1 + 4 + xml_length + 2
+
+            # 检查是否有完整的报文
+            if len(self._receive_buffer) < total_length:
+                log.info(f"缓冲区数据不完整，等待更多数据，当前长度: {len(self._receive_buffer)}, 需要: {total_length}")
+                return
+
+            # 检查结尾标识
+            footer_pos = total_length - 2
+            if self._receive_buffer[footer_pos:footer_pos + 2] != StateGrid57Protocol.PACKET_FOOTER:
+                log.warning(f"结尾标识不匹配，期望EB90，实际: {self._receive_buffer[footer_pos:footer_pos + 2].hex().upper()}")
+                # 丢弃这个无效的头，继续查找
+                self._receive_buffer = self._receive_buffer[2:]
+                continue
+
+            # 提取完整报文（包含头尾）
+            packet = self._receive_buffer[:total_length]
+            self._receive_buffer = self._receive_buffer[total_length:]
+            
+            log.info(f"找到完整报文: 长度={len(packet)}, XML长度={xml_length}")
 
             # 处理报文
             await self._handle_packet(packet)
 
     async def _handle_packet(self, data: bytes):
-        """处理单个报文"""
+        """处理单个报文（包含头尾标识）
+        
+        Args:
+            data: 完整报文（包含EB90头尾）
+        """
         if not self._protocol_handler:
+            log.warning("协议处理器未初始化，无法处理报文")
             return
 
         try:
+            log.info(f"_handle_packet: 开始处理报文，长度={len(data)}, 前20字节={data[:20].hex().upper()}")
+            
+            # 去掉头尾标识后传给协议处理器
+            # data 格式: EB90 + 内容 + EB90
+            packet_content = data[2:-2]  # 去掉头尾各2字节
+            
             # 处理接收数据
-            response = await self._protocol_handler.handle_receive(data)
+            response = await self._protocol_handler.handle_receive(packet_content)
+            log.info(f"_handle_packet: 处理完成，是否有响应={response is not None}")
 
             # 发送响应
             if response and self.writer:
                 self.writer.write(response)
                 await self.writer.drain()
+                log.info(f"已发送响应: 长度={len(response)}")
 
         except Exception as e:
             log.error(f"处理报文失败: {e}")
