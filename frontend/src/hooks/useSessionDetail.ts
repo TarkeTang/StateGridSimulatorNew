@@ -242,14 +242,22 @@ export function useSessionDetail({ sessionId }: UseSessionDetailOptions): UseSes
   useEffect(() => {
     if (!sessionId) return
 
-    // 连接 WebSocket
-    wsClient.connect()
+    // 连接 WebSocket 并等待完成后订阅
+    const initWebSocket = async () => {
+      const connected = await wsClient.connect()
+      if (connected) {
+        console.log('[SessionDetail] WebSocket 连接成功，订阅会话:', sessionId)
+        wsClient.subscribeSession(sessionId)
+      } else {
+        console.log('[SessionDetail] WebSocket 连接失败')
+      }
+    }
 
-    // 订阅会话消息
-    wsClient.subscribeSession(sessionId)
+    initWebSocket()
 
     // 监听通信消息
     const unsubComm = wsClient.onCommunication(sessionId, (data: CommunicationData) => {
+      console.log('[SessionDetail] 收到通信消息:', data.direction, data.content.substring(0, 50))
       const newMessage: SessionMessage = {
         id: Date.now(),
         session_id: data.session_id,
@@ -305,7 +313,7 @@ export function useSessionDetail({ sessionId }: UseSessionDetailOptions): UseSes
       unsubStatus()
       wsClient.unsubscribeSession(sessionId)
     }
-  }, [sessionId, session])
+  }, [sessionId]) // 移除 session 依赖，避免重复执行
 
   return {
     session,
