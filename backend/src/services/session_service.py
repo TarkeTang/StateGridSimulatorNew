@@ -126,7 +126,7 @@ class SessionConfigService:
 
         try:
             # 根据协议类型创建连接
-            if config.protocol_type == "STATEGRID57":
+            if config.protocol_type in ("STATEGRID57", "57StateGrid"):
                 # 国网57号文协议
                 success = await self._connect_stategrid57(config)
             else:

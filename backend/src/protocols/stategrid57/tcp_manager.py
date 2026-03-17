@@ -202,7 +202,7 @@ class StateGrid57TcpConnection:
             log.error(f"断开连接失败: {e}")
             return False
 
-    async def send(self, content: str, is_auto_send: bool = False) -> Dict[str, Any]:
+    async def send(self, content: str, is_auto_send: bool = False) -> bool:
         """
         发送消息
 
@@ -214,13 +214,15 @@ class StateGrid57TcpConnection:
             is_auto_send: 是否为自动发送
 
         Returns:
-            发送结果
+            发送是否成功
         """
         if self.status != "connected" or not self.writer:
-            return {"success": False, "error": "未连接"}
+            log.warning(f"会话 {self.session_name} 未连接，无法发送数据")
+            return False
 
         if not self._protocol_handler:
-            return {"success": False, "error": "协议处理器未初始化"}
+            log.error(f"协议处理器未初始化")
+            return False
 
         try:
             raw_data: bytes
@@ -257,11 +259,13 @@ class StateGrid57TcpConnection:
                     message_type="64",  # 默认使用监视数据类型
                     items=[{"content": content}],
                 )
-                log.info(f"发送普通文本消息，已打包成协议格式")
+                log.info(f"发送普通文本消息，已打包成协议格式，原始内容: {content[:50]}")
 
             # 发送数据
             self.writer.write(raw_data)
             await self.writer.drain()
+            
+            log.info(f"国网57号文协议发送成功: 长度={len(raw_data)}, 报文头={raw_data[:4].hex().upper()}")
 
             # 记录消息
             if self.connection_id and self.session_id:
@@ -273,11 +277,11 @@ class StateGrid57TcpConnection:
                     is_auto_send=is_auto_send,
                 )
 
-            return {"success": True, "content": content}
+            return True
 
         except Exception as e:
             log.error(f"发送消息失败: {e}")
-            return {"success": False, "error": str(e)}
+            return False
 
     async def send_protocol_message(
         self,
