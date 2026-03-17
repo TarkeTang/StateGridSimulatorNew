@@ -84,14 +84,20 @@ class StateGrid57TcpConnection:
         self.reconnect_count: int = 0
         self.reconnect_task: Optional[asyncio.Task] = None
 
-    async def connect(self) -> bool:
-        """建立 TCP 连接"""
+    async def connect(self, is_reconnect: bool = False) -> bool:
+        """建立 TCP 连接
+        
+        Args:
+            is_reconnect: 是否为重连调用（重连时不改变状态）
+        """
         if self.status == "connected":
             log.warning(f"会话 {self.session_name} 已连接")
             return True
 
-        self.status = "connecting"
-        await self._notify_status_change("connecting")
+        # 只有非重连时才更新状态为 connecting
+        if not is_reconnect:
+            self.status = "connecting"
+            await self._notify_status_change("connecting")
 
         try:
             log.info(f"正在连接 {self.host}:{self.port}...")
@@ -151,22 +157,28 @@ class StateGrid57TcpConnection:
         except asyncio.TimeoutError:
             error_msg = f"连接超时: {self.host}:{self.port}"
             log.error(error_msg)
-            self.status = "error"
-            await self._notify_status_change("error", error_msg)
+            # 重连时不改变状态，由 _auto_reconnect 处理
+            if not is_reconnect:
+                self.status = "error"
+                await self._notify_status_change("error", error_msg)
             return False
 
         except OSError as e:
             error_msg = f"连接失败: {e.strerror or str(e)}"
             log.error(f"TCP 连接失败: {self.host}:{self.port}, 错误: {e}")
-            self.status = "error"
-            await self._notify_status_change("error", error_msg)
+            # 重连时不改变状态，由 _auto_reconnect 处理
+            if not is_reconnect:
+                self.status = "error"
+                await self._notify_status_change("error", error_msg)
             return False
 
         except Exception as e:
             error_msg = f"连接异常: {str(e)}"
             log.error(f"TCP 连接异常: {self.host}:{self.port}, 错误: {e}")
-            self.status = "error"
-            await self._notify_status_change("error", error_msg)
+            # 重连时不改变状态，由 _auto_reconnect 处理
+            if not is_reconnect:
+                self.status = "error"
+                await self._notify_status_change("error", error_msg)
             return False
 
     async def disconnect(self) -> bool:
@@ -545,7 +557,7 @@ class StateGrid57TcpConnection:
 
             await asyncio.sleep(self.reconnect_interval / 1000)
 
-            success = await self.connect()
+            success = await self.connect(is_reconnect=True)
             if success:
                 log.info(f"自动重连成功: {self.host}:{self.port}")
                 self.reconnect_count = 0
