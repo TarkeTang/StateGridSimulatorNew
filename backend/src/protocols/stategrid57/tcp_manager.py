@@ -148,10 +148,6 @@ class StateGrid57TcpConnection:
             # 启动接收任务
             self.receive_task = asyncio.create_task(self._receive_loop())
 
-            # 如果是客户端模式，发送注册消息
-            if self.protocol_config.auto_register:
-                await self._send_register()
-
             return True
 
         except asyncio.TimeoutError:
