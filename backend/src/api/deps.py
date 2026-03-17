@@ -30,7 +30,8 @@ async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
 
 def get_async_session_factory():
     """获取数据库会话工厂（用于服务层）"""
-    return AsyncSessionLocal
+    from src.db.session import get_db_context
+    return get_db_context
 
 
 async def get_current_user_id(
