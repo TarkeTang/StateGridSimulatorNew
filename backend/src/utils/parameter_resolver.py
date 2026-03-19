@@ -11,10 +11,28 @@ import json
 import random
 import re
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from src.models.parameter import ParameterConfig
+
+# 中国时区 UTC+8
+CHINA_TIMEZONE = timezone.utc
+
+
+def get_now() -> datetime:
+    """获取当前时间（使用系统本地时区）"""
+    return datetime.now()
+
+
+def get_local_timestamp_ms() -> int:
+    """获取当前时间戳（毫秒）"""
+    return int(get_now().timestamp() * 1000)
+
+
+def get_local_timestamp_s() -> int:
+    """获取当前时间戳（秒）"""
+    return int(get_now().timestamp())
 
 
 class ParameterResolver:
@@ -32,11 +50,11 @@ class ParameterResolver:
 
     # 内置参数（无需配置即可使用）
     BUILTIN_PARAMS = {
-        "timestamp": lambda: str(int(datetime.now().timestamp() * 1000)),
-        "timestamp_s": lambda: str(int(datetime.now().timestamp())),
-        "datetime": lambda: datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "date": lambda: datetime.now().strftime("%Y-%m-%d"),
-        "time": lambda: datetime.now().strftime("%H:%M:%S"),
+        "timestamp": lambda: str(get_local_timestamp_ms()),
+        "timestamp_s": lambda: str(get_local_timestamp_s()),
+        "datetime": lambda: get_now().strftime("%Y-%m-%d %H:%M:%S"),
+        "date": lambda: get_now().strftime("%Y-%m-%d"),
+        "time": lambda: get_now().strftime("%H:%M:%S"),
         "uuid": lambda: str(uuid.uuid4()),
         "uuid_short": lambda: str(uuid.uuid4()).replace("-", ""),
         "random_int": lambda: str(random.randint(0, 999999)),
@@ -116,11 +134,11 @@ class ParameterResolver:
         unit = config.get("unit", "formatted")  # formatted, ms, s
 
         if unit == "ms":
-            return str(int(datetime.now().timestamp() * 1000))
+            return str(get_local_timestamp_ms())
         elif unit == "s":
-            return str(int(datetime.now().timestamp()))
+            return str(get_local_timestamp_s())
         else:
-            return datetime.now().strftime(fmt)
+            return get_now().strftime(fmt)
 
     def _resolve_random(self, param: ParameterConfig) -> str:
         """解析随机数参数"""

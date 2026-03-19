@@ -28,6 +28,9 @@ class MessageRepository:
 
     async def create(self, data: SessionMessageCreate) -> SessionMessage:
         """创建消息记录"""
+        # 使用 Python 本地时间，确保与参数替换时间一致
+        now = datetime.now()
+
         message = SessionMessage(
             connection_id=data.connection_id,
             session_id=data.session_id,
@@ -43,6 +46,7 @@ class MessageRepository:
             target_address=data.target_address,
             target_port=data.target_port,
             extra_data=data.extra_data,
+            timestamp=now,  # 显式设置时间戳
         )
         self.db.add(message)
         await self.db.flush()

@@ -521,7 +521,18 @@ const SessionManagePage = () => {
                   <label className="block text-sm text-gray-400 mb-1.5">协议类型</label>
                   <select
                     value={formData.protocol_type}
-                    onChange={(e) => setFormData({ ...formData, protocol_type: e.target.value })}
+                    onChange={(e) => {
+                      const newProtocolType = e.target.value
+                      const isStateGrid57 = newProtocolType === 'STATEGRID57' || newProtocolType === '57StateGrid'
+                      setFormData({
+                        ...formData,
+                        protocol_type: newProtocolType,
+                        // 切换到国网57号文协议时，确保配置已初始化
+                        stategrid57_config: isStateGrid57
+                          ? (formData.stategrid57_config || defaultStateGrid57Config)
+                          : formData.stategrid57_config
+                      })
+                    }}
                     className="input-field"
                   >
                     {protocolTypes.map((item) => (
@@ -583,7 +594,7 @@ const SessionManagePage = () => {
               </div>
 
               {/* 国网57号文协议配置 */}
-              {formData.protocol_type === 'STATEGRID57' && formData.stategrid57_config && (
+              {(formData.protocol_type === 'STATEGRID57' || formData.protocol_type === '57StateGrid') && formData.stategrid57_config && (
                 <StateGrid57ConfigForm
                   value={formData.stategrid57_config}
                   onChange={(config) => setFormData({ ...formData, stategrid57_config: config })}

@@ -40,14 +40,14 @@ class SessionConfigService:
             raise ValueError(f"会话名称已存在: {data.name}")
 
         config = await self.repository.create(data)
-        return SessionConfigResponse.model_validate(config)
+        return SessionConfigResponse.model_validate(config.to_dict())
 
     async def get_session(self, config_id: int) -> Optional[SessionConfigResponse]:
         """获取会话配置详情"""
         config = await self.repository.get_by_id(config_id)
         if not config:
             return None
-        return SessionConfigResponse.model_validate(config)
+        return SessionConfigResponse.model_validate(config.to_dict())
 
     async def get_session_list(
         self,
@@ -68,7 +68,7 @@ class SessionConfigService:
             is_enabled=is_enabled,
         )
         return SessionConfigListResponse(
-            items=[SessionConfigResponse.model_validate(item) for item in items],
+            items=[SessionConfigResponse.model_validate(item.to_dict()) for item in items],
             total=total,
             page=page,
             page_size=page_size,
@@ -92,7 +92,7 @@ class SessionConfigService:
         config = await self.repository.update(config_id, data)
         if not config:
             return None
-        return SessionConfigResponse.model_validate(config)
+        return SessionConfigResponse.model_validate(config.to_dict())
 
     async def update_session_status(
         self, config_id: int, status: str, error_message: Optional[str] = None
@@ -101,7 +101,7 @@ class SessionConfigService:
         config = await self.repository.update_status(config_id, status, error_message)
         if not config:
             return None
-        return SessionConfigResponse.model_validate(config)
+        return SessionConfigResponse.model_validate(config.to_dict())
 
     async def delete_session(self, config_id: int) -> bool:
         """删除会话配置"""
@@ -144,7 +144,7 @@ class SessionConfigService:
                 )
                 raise ValueError("连接失败")
 
-            return SessionConfigResponse.model_validate(config)
+            return SessionConfigResponse.model_validate(config.to_dict())
 
         except Exception as e:
             # 更新数据库状态为错误
@@ -212,7 +212,7 @@ class SessionConfigService:
         config = await self.repository.update_status(config_id, "disconnected")
         log.info(f"会话已断开: {config.name}")
 
-        return SessionConfigResponse.model_validate(config)
+        return SessionConfigResponse.model_validate(config.to_dict())
 
     async def send_message(self, config_id: int, data: str) -> bool:
         """发送消息（支持参数替换）"""
@@ -239,4 +239,4 @@ class SessionConfigService:
     async def get_all_enabled_sessions(self) -> List[SessionConfigResponse]:
         """获取所有启用的会话配置"""
         configs = await self.repository.get_all_enabled()
-        return [SessionConfigResponse.model_validate(config) for config in configs]
+        return [SessionConfigResponse.model_validate(config.to_dict()) for config in configs]

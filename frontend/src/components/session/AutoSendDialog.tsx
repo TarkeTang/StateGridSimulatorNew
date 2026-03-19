@@ -2,6 +2,7 @@
  * 自动发送配置弹窗组件
  */
 
+import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui'
 import { X, Plus, GripVertical, Trash2 } from 'lucide-react'
 import type { AutoSendConfig } from '@/services/autoSend'
@@ -29,6 +30,22 @@ export function AutoSendDialog({
   onRemove,
   onStart,
 }: AutoSendDialogProps) {
+  // 输入框临时值（字符串），用于支持自由编辑
+  const [inputValues, setInputValues] = useState<Record<number, string>>({})
+
+  // 同步 configs 到 inputValues
+  useEffect(() => {
+    const newValues: Record<number, string> = {}
+    configs.forEach((config) => {
+      if (!(config.id in inputValues)) {
+        newValues[config.id] = String(config.interval_ms)
+      }
+    })
+    if (Object.keys(newValues).length > 0) {
+      setInputValues((prev) => ({ ...prev, ...newValues }))
+    }
+  }, [configs])
+
   if (!open) return null
 
   const enabledCount = configs.filter((c) => c.is_enabled && c.message_content.trim()).length
@@ -85,28 +102,25 @@ export function AutoSendDialog({
                       <span className="text-xs text-gray-400">发送后等待</span>
                       <input
                         type="number"
-                        value={config.interval_ms}
+                        value={inputValues[config.id] ?? String(config.interval_ms)}
                         onChange={(e) => {
-                          const val = e.target.value
-                          if (val === '') {
-                            onUpdate(config.id, 'interval_ms', '' as any)
-                          } else {
-                            const num = Number(val)
-                            if (num <= 86400000) {
-                              onUpdate(config.id, 'interval_ms', num)
-                            }
-                          }
+                          // 更新临时输入值，允许自由编辑
+                          setInputValues((prev) => ({
+                            ...prev,
+                            [config.id]: e.target.value,
+                          }))
                         }}
                         onBlur={(e) => {
                           const val = Number(e.target.value)
-                          if (val < 100) {
-                            onUpdate(config.id, 'interval_ms', 100)
-                          }
+                          // 失焦时校验并更新实际值
+                          const finalValue = isNaN(val) || val < 100 ? 100 : val
+                          onUpdate(config.id, 'interval_ms', finalValue)
+                          setInputValues((prev) => ({
+                            ...prev,
+                            [config.id]: String(finalValue),
+                          }))
                         }}
                         className="input-field w-20 text-sm py-1"
-                        min={100}
-                        max={86400000}
-                        step={100}
                         disabled={isActive}
                       />
                       <span className="text-xs text-gray-400">ms</span>
