@@ -226,18 +226,12 @@ class StateGrid57Handler:
             if "nest_run_interval" in item:
                 self.config.nest_run_interval = int(item["nest_run_interval"])
 
-            if "weather_interval" in item:
-                self.config.weather_interval = int(item["weather_interval"])
-
             if "env_interval" in item:
                 self.config.env_interval = int(item["env_interval"])
 
-            if "run_params_interval" in item:
-                self.config.run_params_interval = int(item["run_params_interval"])
-
             # 设置登录状态
             self._is_logged_in = True
-            log.info(f"注册成功，心跳间隔: {self.config.heart_beat_interval}s")
+            log.info(f"注册成功，心跳间隔: {self.config.heart_beat_interval}ms")
 
     def _get_register_response_items(self) -> List[Dict[str, Any]]:
         """获取注册响应的数据项"""
@@ -245,7 +239,6 @@ class StateGrid57Handler:
             return [
                 {
                     "heart_beat_interval": str(self.config.heart_beat_interval),
-                    "run_params_interval": str(self.config.run_params_interval),
                 }
             ]
         else:
@@ -254,7 +247,7 @@ class StateGrid57Handler:
                     "heart_beat_interval": str(self.config.heart_beat_interval),
                     "patroldevice_run_interval": str(self.config.patroldevice_run_interval),
                     "nest_run_interval": str(self.config.nest_run_interval),
-                    "weather_interval": str(self.config.weather_interval),
+                    "env_interval": str(self.config.env_interval),
                 }
             ]
 
@@ -435,7 +428,8 @@ class StateGrid57Handler:
             try:
                 # 等待登录成功
                 if self._is_logged_in:
-                    await asyncio.sleep(self.config.heart_beat_interval)
+                    # heart_beat_interval 单位为 ms，需要转换为秒
+                    await asyncio.sleep(self.config.heart_beat_interval / 1000)
 
                     # 发送心跳
                     heartbeat = self.create_heartbeat_message()

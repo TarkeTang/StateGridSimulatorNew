@@ -26,15 +26,13 @@ class StateGrid57ConfigSchema(BaseModel):
     node_type: str = Field(default="PatrolDevice", description="节点类型: PatrolHost/PatrolDevice/CloudHost")
 
     # 心跳配置
-    heart_beat_interval: int = Field(default=100, ge=10, le=3600, description="心跳间隔(秒)")
+    heart_beat_interval: int = Field(default=100000, ge=100, le=3600000, description="心跳间隔(ms)")
     auto_heartbeat: bool = Field(default=True, description="是否自动发送心跳")
 
     # 数据上报间隔配置
-    patroldevice_run_interval: int = Field(default=300, ge=10, le=3600, description="巡视装置运行数据间隔(秒)")
-    nest_run_interval: int = Field(default=300, ge=10, le=3600, description="无人机机巢运行数据间隔(秒)")
-    weather_interval: int = Field(default=300, ge=10, le=3600, description="环境数据间隔(秒)")
-    env_interval: int = Field(default=300, ge=10, le=3600, description="环境数据上报间隔(秒)")
-    run_params_interval: int = Field(default=300, ge=10, le=3600, description="运行参数间隔(秒)")
+    patroldevice_run_interval: int = Field(default=300000, ge=100, le=3600000, description="巡视装置运行数据间隔(ms)")
+    nest_run_interval: int = Field(default=300000, ge=100, le=3600000, description="无人机机巢运行数据间隔(ms)")
+    env_interval: int = Field(default=300000, ge=100, le=3600000, description="环境数据上报间隔(ms)")
 
     # 自动注册
     auto_register: bool = Field(default=True, description="连接后是否自动发送注册指令")

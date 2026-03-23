@@ -85,11 +85,11 @@ export function StateGrid57ConfigForm({ value, onChange }: StateGrid57ConfigForm
       {/* 心跳配置 */}
       <div className="grid grid-cols-2 gap-4">
         <Input
-          label="心跳间隔(秒)"
+          label="心跳间隔(ms)"
           type="number"
           value={value.heart_beat_interval}
-          onChange={(e) => updateField('heart_beat_interval', parseInt(e.target.value) || 100)}
-          placeholder="100"
+          onChange={(e) => updateField('heart_beat_interval', parseInt(e.target.value) || 100000)}
+          placeholder="100000"
         />
         <div className="flex items-center gap-4 pt-6">
           <label className="flex items-center gap-2 cursor-pointer">
@@ -106,42 +106,28 @@ export function StateGrid57ConfigForm({ value, onChange }: StateGrid57ConfigForm
 
       {/* 数据上报间隔 */}
       <div className="border-t border-panel-border pt-4 mt-4">
-        <h5 className="text-xs text-gray-400 mb-3">数据上报间隔配置(秒)</h5>
+        <h5 className="text-xs text-gray-400 mb-3">数据上报间隔配置(ms)</h5>
         <div className="grid grid-cols-3 gap-4">
           <Input
             label="巡视装置运行数据"
             type="number"
             value={value.patroldevice_run_interval}
-            onChange={(e) => updateField('patroldevice_run_interval', parseInt(e.target.value) || 300)}
-            placeholder="300"
+            onChange={(e) => updateField('patroldevice_run_interval', parseInt(e.target.value) || 300000)}
+            placeholder="300000"
           />
           <Input
             label="无人机机巢运行数据"
             type="number"
             value={value.nest_run_interval}
-            onChange={(e) => updateField('nest_run_interval', parseInt(e.target.value) || 300)}
-            placeholder="300"
-          />
-          <Input
-            label="环境数据"
-            type="number"
-            value={value.weather_interval}
-            onChange={(e) => updateField('weather_interval', parseInt(e.target.value) || 300)}
-            placeholder="300"
+            onChange={(e) => updateField('nest_run_interval', parseInt(e.target.value) || 300000)}
+            placeholder="300000"
           />
           <Input
             label="环境数据上报"
             type="number"
             value={value.env_interval}
-            onChange={(e) => updateField('env_interval', parseInt(e.target.value) || 300)}
-            placeholder="300"
-          />
-          <Input
-            label="运行参数"
-            type="number"
-            value={value.run_params_interval}
-            onChange={(e) => updateField('run_params_interval', parseInt(e.target.value) || 300)}
-            placeholder="300"
+            onChange={(e) => updateField('env_interval', parseInt(e.target.value) || 300000)}
+            placeholder="300000"
           />
         </div>
       </div>
@@ -173,19 +159,17 @@ export function StateGrid57ConfigForm({ value, onChange }: StateGrid57ConfigForm
   )
 }
 
-// 默认配置
+// 默认配置（单位：ms）
 export const defaultStateGrid57Config: StateGrid57Config = {
   send_code: 'Device01',
   receive_code: 'Server01',
   device_mode: 'Edge',
   node_type: 'PatrolDevice',
-  heart_beat_interval: 100,
+  heart_beat_interval: 100000,      // 100秒 = 100000ms
   auto_heartbeat: true,
-  patroldevice_run_interval: 300,
-  nest_run_interval: 300,
-  weather_interval: 300,
-  env_interval: 300,
-  run_params_interval: 300,
+  patroldevice_run_interval: 300000, // 300秒 = 300000ms
+  nest_run_interval: 300000,
+  env_interval: 300000,
   auto_register: true,
   auto_response: true,
 }

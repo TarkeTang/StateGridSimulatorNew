@@ -34,8 +34,10 @@ class DatabaseSettings(BaseSettings):
     password: str = "postgres"
     database: str = "app_db"
 
-    # SQLite 文件路径
-    sqlite_file: str = "data/app.db"
+    # SQLite 文件路径（使用绝对路径，避免工作目录歧义）
+    # 默认为 backend/data/app.db
+    _backend_dir: Path = Path(__file__).resolve().parent.parent.parent
+    sqlite_file: str = str(_backend_dir / "data" / "app.db")
 
     # 连接池配置
     pool_size: int = 10
