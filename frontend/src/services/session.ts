@@ -11,13 +11,11 @@ export interface StateGrid57Config {
   receive_code: string
   device_mode: string
   node_type: string
-  heart_beat_interval: number
+  heart_beat_interval: number      // 心跳间隔(ms)
   auto_heartbeat: boolean
-  patroldevice_run_interval: number
-  nest_run_interval: number
-  weather_interval: number
-  env_interval: number
-  run_params_interval: number
+  patroldevice_run_interval: number // 巡视装置运行数据上报间隔(ms)
+  nest_run_interval: number        // 无人机机巢运行数据上报间隔(ms)
+  env_interval: number             // 环境数据上报间隔(ms)
   auto_register: boolean
   auto_response: boolean
 }

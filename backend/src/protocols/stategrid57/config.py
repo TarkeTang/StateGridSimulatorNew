@@ -43,15 +43,13 @@ class StateGrid57Config(BaseModel):
     node_type: NodeType = Field(default=NodeType.PATROL_DEVICE, description="节点类型")
 
     # 心跳配置
-    heart_beat_interval: int = Field(default=100, ge=10, le=3600, description="心跳间隔(秒)")
+    heart_beat_interval: int = Field(default=100000, ge=100, le=3600000, description="心跳间隔(ms)")
     auto_heartbeat: bool = Field(default=True, description="是否自动发送心跳")
 
     # 数据上报间隔配置
-    patroldevice_run_interval: int = Field(default=300, ge=10, le=3600, description="巡视装置运行数据间隔(秒)")
-    nest_run_interval: int = Field(default=300, ge=10, le=3600, description="无人机机巢运行数据间隔(秒)")
-    weather_interval: int = Field(default=300, ge=10, le=3600, description="环境数据间隔(秒)")
-    env_interval: int = Field(default=300, ge=10, le=3600, description="环境数据上报间隔(秒)")
-    run_params_interval: int = Field(default=300, ge=10, le=3600, description="运行参数间隔(秒)")
+    patroldevice_run_interval: int = Field(default=300000, ge=100, le=3600000, description="巡视装置运行数据间隔(ms)")
+    nest_run_interval: int = Field(default=300000, ge=100, le=3600000, description="无人机机巢运行数据间隔(ms)")
+    env_interval: int = Field(default=300000, ge=100, le=3600000, description="环境数据上报间隔(ms)")
 
     # 自动注册
     auto_register: bool = Field(default=True, description="连接后是否自动发送注册指令")
@@ -70,9 +68,7 @@ class StateGrid57Config(BaseModel):
             "auto_heartbeat": self.auto_heartbeat,
             "patroldevice_run_interval": self.patroldevice_run_interval,
             "nest_run_interval": self.nest_run_interval,
-            "weather_interval": self.weather_interval,
             "env_interval": self.env_interval,
-            "run_params_interval": self.run_params_interval,
             "auto_register": self.auto_register,
             "auto_response": self.auto_response,
         }
@@ -85,13 +81,11 @@ class StateGrid57Config(BaseModel):
             receive_code=data.get("receive_code", "Server01"),
             device_mode=DeviceMode(data.get("device_mode", "Edge")),
             node_type=NodeType(data.get("node_type", "PatrolDevice")),
-            heart_beat_interval=data.get("heart_beat_interval", 100),
+            heart_beat_interval=data.get("heart_beat_interval", 100000),
             auto_heartbeat=data.get("auto_heartbeat", True),
-            patroldevice_run_interval=data.get("patroldevice_run_interval", 300),
-            nest_run_interval=data.get("nest_run_interval", 300),
-            weather_interval=data.get("weather_interval", 300),
-            env_interval=data.get("env_interval", 300),
-            run_params_interval=data.get("run_params_interval", 300),
+            patroldevice_run_interval=data.get("patroldevice_run_interval", 300000),
+            nest_run_interval=data.get("nest_run_interval", 300000),
+            env_interval=data.get("env_interval", 300000),
             auto_register=data.get("auto_register", True),
             auto_response=data.get("auto_response", True),
         )

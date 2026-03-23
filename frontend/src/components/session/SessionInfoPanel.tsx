@@ -64,18 +64,16 @@ function StateGrid57ConfigPanel({ config }: { config: StateGrid57Config }) {
         <div className="pt-2 pb-2 border-t border-panel-border/50">
           <span className="text-xs text-gray-500">心跳配置</span>
         </div>
-        <ConfigItem label="心跳间隔" value={`${config.heart_beat_interval}秒`} />
+        <ConfigItem label="心跳间隔" value={`${config.heart_beat_interval}ms`} />
         <ConfigItem label="自动发送心跳" value={config.auto_heartbeat} />
 
         {/* 数据上报间隔 */}
         <div className="pt-2 pb-2 border-t border-panel-border/50">
           <span className="text-xs text-gray-500">数据上报间隔</span>
         </div>
-        <ConfigItem label="巡视装置运行数据" value={`${config.patroldevice_run_interval}秒`} />
-        <ConfigItem label="无人机机巢运行数据" value={`${config.nest_run_interval}秒`} />
-        <ConfigItem label="环境数据" value={`${config.weather_interval}秒`} />
-        <ConfigItem label="环境数据上报" value={`${config.env_interval}秒`} />
-        <ConfigItem label="运行参数" value={`${config.run_params_interval}秒`} />
+        <ConfigItem label="巡视装置运行数据" value={`${config.patroldevice_run_interval}ms`} />
+        <ConfigItem label="无人机机巢运行数据" value={`${config.nest_run_interval}ms`} />
+        <ConfigItem label="环境数据上报" value={`${config.env_interval}ms`} />
 
         {/* 自动行为 */}
         <div className="pt-2 pb-2 border-t border-panel-border/50">
@@ -89,6 +87,8 @@ function StateGrid57ConfigPanel({ config }: { config: StateGrid57Config }) {
 }
 
 export function SessionInfoPanel({ session, protocolTypes }: SessionInfoPanelProps) {
+  const isStateGrid57 = session.protocol_type === 'STATEGRID57' || session.protocol_type === '57StateGrid'
+
   return (
     <Panel title="会话信息" className="flex-1 min-h-0 overflow-auto">
       <div className="space-y-3">
@@ -130,16 +130,18 @@ export function SessionInfoPanel({ session, protocolTypes }: SessionInfoPanelPro
             {session.auto_reconnect ? `是 (${session.reconnect_interval}ms)` : '否'}
           </span>
         </div>
+
+        {/* 国网57号文协议配置 */}
+        {isStateGrid57 && session.stategrid57_config && (
+          <StateGrid57ConfigPanel config={session.stategrid57_config} />
+        )}
+
+        {/* 描述 - 移到国网57号文协议配置下面 */}
         {session.description && (
           <div className="pt-2 border-t border-panel-border">
             <span className="text-gray-400 text-sm">描述</span>
             <p className="text-gray-300 text-sm mt-1">{session.description}</p>
           </div>
-        )}
-
-        {/* 国网57号文协议配置 */}
-        {(session.protocol_type === 'STATEGRID57' || session.protocol_type === '57StateGrid') && session.stategrid57_config && (
-          <StateGrid57ConfigPanel config={session.stategrid57_config} />
         )}
       </div>
     </Panel>
